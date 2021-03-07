@@ -1,0 +1,19 @@
+---
+# YOLOv3 detection head architecture
+layers:
+  - [ "C", 512, 1, 1 ]
+  - [ "C", 1024, 3, 1 ]
+  - [ "S" ]
+  # We have a prediction at this scale
+  - [ "C", 256, 1, 1 ]
+  - [ "U" ]
+  - [ "C", 256, 1, 1 ]
+  - [ "C", 512, 3, 1 ]
+  - [ "S" ]
+  # We have a prediction at this scale
+  - [ "C", 128, 1, 1 ]
+  - [ "U" ]
+  - [ "C", 128, 1, 1 ]
+  - [ "C", 256, 3, 1 ]
+  - [ "S" ]
+  # We have a prediction at this scale
