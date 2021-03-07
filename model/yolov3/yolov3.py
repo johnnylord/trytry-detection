@@ -145,6 +145,8 @@ class YOLOv3(nn.Module):
             elif option == 'U':
                 layers.append(nn.Upsample(scale_factor=2))
                 in_channels = in_channels * 3
+                # Concat with previous layer output
+                # See `route_connections` in forward method
             else:
                 raise ValueError("Don't know how to parse '{}' type layer".format(option))
 
@@ -158,7 +160,6 @@ if __name__ == "__main__":
     model = YOLOv3(in_channels=3, num_classes=num_classes)
     x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE))
     outs = model(x)
-
     print("Output Shape: (N, num_anchors, img_height, img_width, num_class+5)")
     print("Scale #1:", outs[0].shape)
     print("Scale #2:", outs[1].shape)
