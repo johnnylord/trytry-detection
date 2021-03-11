@@ -6,6 +6,7 @@ from utils.cleanup import intersection_over_union
 
 class YOLOLoss(nn.Module):
     def __init__(self):
+        super().__init__()
         self.mse = nn.MSELoss()
         self.bce = nn.BCEWithLogitsLoss()
         self.entropy = nn.CrossEntropyLoss()
