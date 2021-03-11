@@ -1,6 +1,28 @@
 import torch
 
 
+def iou_width_height(boxes1, boxes2):
+    """Compute iou between two bboxes set with width and height only
+
+    Arguments:
+        boxes1 (tensor): width and height of the first bounding boxes
+        boxes2 (tensor): width and height of the second bounding boxes
+
+    Returns:
+        tensor: intersection over unoin of the corresponding obxes
+    """
+    intersection = (
+            torch.min(boxes1[..., 0], boxes2[..., 0])*
+            torch.min(boxes1[..., 1], boxes2[..., 1])
+            )
+    union = (
+            (boxes1[..., 0]*boxes1[..., 1])+
+            (boxes2[..., 0]*boxes2[..., 1])-
+            intersection
+            )
+    return intersection / union
+
+
 def intersection_over_union(preds, labels, box_format='tlbr'):
     """Compute iou value between two bboxes set
 
