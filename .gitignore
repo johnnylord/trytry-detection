@@ -1,8 +1,8 @@
-run/
 checkpoints/
-download/
 
 __pycache__/
 .ipynb_checkpoints/
 
+run/*
+download/*
 !/**/.gitkeep
