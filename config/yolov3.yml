@@ -1,9 +1,17 @@
 ---
 agent: "YOLOv3Agent"
-train:
-  device: "cuda"
-  logdir: "run/yolov3_voc"
 
+train:
+  device: "cuda:1"
+  logdir: "run/yolov3_voc"
+  n_epochs: 100
+  valid_cycle: 5
+  resume: false
+
+valid:
+  conf_threshold: 0.6
+  map_iou_threshold: 0.5
+  nms_iou_threshold: 0.45
 
 # PASCAL_VOC Dataset
 dataset:
@@ -12,12 +20,12 @@ dataset:
   n_classes: 20
   # Training data set
   train:
-    csv: "download/PASCAL_VOC/train.csv"
+    csv: "download/PASCAL_VOC/100examples.csv"
     img_root: "download/PASCAL_VOC/images"
     label_root: "download/PASCAL_VOC/labels"
   # Validation data set
   valid:
-    csv: "download/PASCAL_VOC/test.csv"
+    csv: "download/PASCAL_VOC/100examples.csv"
     img_root: "download/PASCAL_VOC/images"
     label_root: "download/PASCAL_VOC/labels"
   anchors: [
@@ -27,7 +35,7 @@ dataset:
   ]
 
 dataloader:
-  batch_size: 32
+  batch_size: 16
   num_workers: 4
 
 # YOLOv3 Model
@@ -37,5 +45,5 @@ model:
 
 # Adam optimizer
 optimizer:
-  lr: 0.00003
-  weight_decay: 0.0001
+  lr: 0.0003
+  weight_decay: 0 # 0.0001

@@ -26,8 +26,8 @@ class YOLOLoss(nn.Module):
         # NO OBJECT LOSS
         # ==========================================
         noobj_loss = self.bce(
-                preds[..., 0:1][noobj],
-                target[..., 0:1][noobj]
+                preds[..., 0:1][noobj_mask],
+                target[..., 0:1][noobj_mask]
                 )
 
         # OBJECT LOSS
@@ -37,24 +37,24 @@ class YOLOLoss(nn.Module):
         y_cell = self.sigmoid(preds[..., 2:3])
         wh_cell = torch.exp(preds[..., 3:5])*anchors
         pred_bboxes = torch.cat([x_cell, y_cell, wh_cell], dim=-1)
-        ious = intersection_over_union(pred_bboxes[obj],
-                                    target[..., 1:5][obj]).detach()
+        ious = intersection_over_union(pred_bboxes[obj_mask],
+                                    target[..., 1:5][obj_mask]).detach()
         obj_loss = self.bce(
-                preds[..., 0:1][obj],
-                ious*target[..., 0:1][obj]
+                preds[..., 0:1][obj_mask],
+                ious*target[..., 0:1][obj_mask]
                 )
 
         # BOX COORDINATEDS LOSS
         # ===========================================
         preds[..., 1:3] = self.sigmoid(preds[..., 1:3])
         target[..., 3:5] = torch.log(1e-16+target[..., 3:5]/anchors)
-        coord_loss = self.mse(preds[..., 1:5][obj], target[..., 1:5][obj])
+        coord_loss = self.mse(preds[..., 1:5][obj_mask], target[..., 1:5][obj_mask])
 
         # CLASS LOSS
         # ===========================================
         class_loss = self.entropy(
-            preds[..., 5:][obj],
-            target[..., 5][obj].long()
+            preds[..., 5:][obj_mask],
+            target[..., 5][obj_mask].long()
             )
 
         return (

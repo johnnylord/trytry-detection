@@ -5,11 +5,15 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
+from tqdm import tqdm
 
 from data.dataset import YOLODataset
 from data.transform import get_yolo_transform
 from model.yolov3 import YOLOv3
 from loss.yolo import YOLOLoss
+from utils.convert import cells_to_bboxes
+from utils.cleanup import non_max_suppression
+from utils.evaluation import mean_average_precision
 
 
 class YOLOv3Agent:
@@ -19,7 +23,11 @@ class YOLOv3Agent:
 
         # Train on device
         target_device = config['train']['device']
-        self.device = target_device if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
+            self.device = target_device
+        else:
+            self.device = "cpu"
 
         # Load dataset
         train_transform = get_yolo_transform(config['dataset']['size'], mode='train')
@@ -71,6 +79,7 @@ class YOLOv3Agent:
         self.scaled_anchors = scaled_anchors.to(self.device)
 
         # Optimizer
+        self.scaler = torch.cuda.amp.GradScaler()
         self.optimizer = optim.Adam(
                             params=self.model.parameters(),
                             lr=config['optimizer']['lr'],
@@ -84,23 +93,147 @@ class YOLOv3Agent:
         self.board = SummaryWriter(logdir=config['train']['logdir'])
 
         # Training State
-        self.current_epoch = -1
+        self.current_epoch = 0
         self.current_map = 0
 
     def resume(self):
         pass
 
     def train(self):
-        pass
+        for epoch in range(self.current_epoch+1, self.config['train']['n_epochs']+1):
+            self.current_epoch = epoch
+            self._train_one_epoch()
+
+            if self.current_epoch % self.config['train']['valid_cycle'] == 0:
+                self._validate()
 
     def finalize(self):
-        pass
+        """Compute mAP value of object detector"""
+        # self.model.eval()
+        # loop = tqdm(self.valid_loader)
+        # n_classes = self.config['dataset']['n_classes']
+        # conf_threshold = self.config['valid']['conf_threshold']
+        # nms_iou_threshold = self.config['valid']['nms_iou_threshold']
+        # map_iou_threshold = self.config['valid']['map_iou_threshold']
+
+        # train_idx = 0
+        # pred_bboxes = []
+        # true_bboxes = []
+        # for batch_idx, (imgs, targets) in enumerate(loop):
+            # batch_size = imgs.size(0)
+            # imgs = imgs.to(self.device)
+            # with torch.no_grad():
+                # out = self.model(imgs)
+            # # Extract predicted bounding boxes (for each scale)
+            # batch_bboxes = [[] for _ in range(batch_size)]
+            # for i in range(len(out)):
+                # scale = out[i].size(2)
+                # anchors = self.scaled_anchors[i]
+                # scale_bboxes = cells_to_bboxes(preds=out[i],
+                                            # anchors=anchors,
+                                            # scale=scale)
+                # scale_bboxes = torch.tensor(scale_bboxes)
+                # for idx, bboxes in enumerate(scale_bboxes):
+                    # obj_mask = bboxes[..., 1] > conf_threshold
+                    # bboxes = bboxes[obj_mask].tolist()
+                    # batch_bboxes[idx] += bboxes
+
+            # # Extract ground truth bounding boxes
+            # gt_bboxes = cells_to_bboxes(preds=targets[len(out)-1],
+                                        # anchors=anchors,
+                                        # scale=scale,
+                                        # is_preds=False)
+            # for i in range(batch_size):
+                # nms_bboxes = non_max_suppression(bboxes=batch_bboxes[i],
+                                # iou_threshold=nms_iou_threshold,
+                                # prob_threshold=conf_threshold,
+                                # classes=list(range(n_classes)),
+                                # box_format='xywh')
+                # for nms_box in nms_bboxes:
+                    # pred_bboxes.append([train_idx] + nms_box)
+                # for box in gt_bboxes:
+                    # if box[1] > conf_threshold:
+                        # true_bboxes.append([train_idx] + box)
+                # train_idx += 1
+
+        # # Compute mAP
+        # print("MAP:", len(pred_bboxes), len(true_bboxes))
+        # mAP = mean_average_precision(pred_boxes=pred_bboxes,
+                                    # true_boxes=true_bboxes,
+                                    # iou_threshold=map_iou_threshold,
+                                    # box_format='xywh',
+                                    # n_classes=n_classes)
+        # print(f"mAP[{map_iou_threshold:.1f}]: {mAP.item()}")
+        # if self.current_map < mAP.item():
+            # self.current_map = mAP.item()
+            # self._save_checkpoint()
 
     def _train_one_epoch(self):
-        pass
+        self.model.train()
+        loop = tqdm(self.train_loader,
+                    leave=True,
+                    desc=f"Train Epoch {self.current_epoch}/{self.config['train']['n_epochs']}")
+        losses = []
+        for batch_idx, (imgs, targets) in enumerate(loop):
+            # Move device
+            imgs = imgs.to(self.device)             # (N, 3, 416, 416)
+            target_s1 = targets[0].to(self.device)  # (N, 3, 13, 13, 6)
+            target_s2 = targets[1].to(self.device)  # (N, 3, 26, 26, 6)
+            target_s3 = targets[2].to(self.device)  # (N, 3, 52, 52, 6)
+
+            with torch.cuda.amp.autocast():
+                out = self.model(imgs)
+                loss = (
+                    self.loss_fn(out[0], target_s1, self.scaled_anchors[0])
+                    + self.loss_fn(out[1], target_s2, self.scaled_anchors[1])
+                    + self.loss_fn(out[2], target_s3, self.scaled_anchors[2])
+                    )
+            losses.append(loss.item())
+            self.optimizer.zero_grad()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+
+            # Upadte progress bar
+            mean_loss = sum(losses) / len(losses)
+            loop.set_postfix(loss=mean_loss)
+
+        # Logging (epoch)
+        epoch_loss = sum(losses) / len(losses)
+        self.board.add_scalar('Train Loss', epoch_loss, global_step=self.current_epoch)
 
     def _validate(self):
-        pass
+        self.model.eval()
+        loop = tqdm(self.valid_loader,
+                    leave=True,
+                    desc=f"Valid Epoch {self.current_epoch}/{self.config['train']['n_epochs']}")
+        losses = []
+        for batch_idx, (imgs, targets) in enumerate(loop):
+            # Move device
+            imgs = imgs.to(self.device)             # (N, 3, 416, 416)
+            target_s1 = targets[0].to(self.device)  # (N, 3, 13, 13, 6)
+            target_s2 = targets[1].to(self.device)  # (N, 3, 26, 26, 6)
+            target_s3 = targets[2].to(self.device)  # (N, 3, 52, 52, 6)
+
+            with torch.cuda.amp.autocast():
+                out = self.model(imgs)
+                loss = (
+                    self.loss_fn(out[0], target_s1, self.scaled_anchors[0])
+                    + self.loss_fn(out[1], target_s2, self.scaled_anchors[1])
+                    + self.loss_fn(out[2], target_s3, self.scaled_anchors[2])
+                    )
+            losses.append(loss.item())
+
+            # Upadte progress bar
+            mean_loss = sum(losses) / len(losses)
+            loop.set_postfix(loss=mean_loss)
+
+        # Logging (epoch)
+        epoch_loss = sum(losses) / len(losses)
+        self.board.add_scalar('Valid Loss', epoch_loss, global_step=self.current_epoch)
 
     def _save_checkpoint(self):
-        pass
+        checkpoint = {
+            'model': self.model.load_state_dict(),
+            'optimizer': self.optimizer.load_state_dict(),
+        }
