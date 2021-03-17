@@ -109,6 +109,7 @@ class YOLOv3Agent:
 
     def finalize(self):
         """Compute mAP value of object detector"""
+        pass
         # self.model.eval()
         # loop = tqdm(self.valid_loader)
         # n_classes = self.config['dataset']['n_classes']
@@ -204,33 +205,92 @@ class YOLOv3Agent:
 
     def _validate(self):
         self.model.eval()
+
+        tot_noobj, correct_noobj = 0, 0
+        tot_obj, correct_obj = 0, 0
+        correct_class = 0
+
+        sample_idx = 0
+        all_pred_bboxes = []
+        all_true_bboxes = []
+
         loop = tqdm(self.valid_loader,
                     leave=True,
                     desc=f"Valid Epoch {self.current_epoch}/{self.config['train']['n_epochs']}")
-        losses = []
+
         for batch_idx, (imgs, targets) in enumerate(loop):
             # Move device
-            imgs = imgs.to(self.device)             # (N, 3, 416, 416)
-            target_s1 = targets[0].to(self.device)  # (N, 3, 13, 13, 6)
-            target_s2 = targets[1].to(self.device)  # (N, 3, 26, 26, 6)
-            target_s3 = targets[2].to(self.device)  # (N, 3, 52, 52, 6)
+            imgs = imgs.to(self.device)     # (N, 3, 416, 416)
+            labels = [
+                targets[0].to(self.device), # (N, 3, 13, 13, 6)
+                targets[1].to(self.device), # (N, 3, 26, 26, 6)
+                targets[2].to(self.device), # (N, 3, 52, 52, 6)
+                ]
 
-            with torch.cuda.amp.autocast():
+            with torch.no_grad():
                 out = self.model(imgs)
-                loss = (
-                    self.loss_fn(out[0], target_s1, self.scaled_anchors[0])
-                    + self.loss_fn(out[1], target_s2, self.scaled_anchors[1])
-                    + self.loss_fn(out[2], target_s3, self.scaled_anchors[2])
+
+            batch_size = imgs.size(0)
+            batch_bboxes = [ [] for _ in range(batch_size) ]
+            for i in range(3):
+                # Current processed prediction and target
+                pred, target = out[i], labels[i]
+                # Extract obj & noobj mask
+                obj_mask = target[..., 0] == 1
+                noobj_mask = target[..., 0] == 0
+                # Count number of true objects and true non-objects
+                tot_obj += torch.sum(obj_mask)
+                tot_noobj += torch.sum(noobj_mask)
+                # Count number of correct classified object
+                correct_class += torch.sum(
+                    torch.argmax(pred[..., 5:][obj_mask], dim=-1) == target[..., 5][obj_mask]
                     )
-            losses.append(loss.item())
+                # Count number of correct objectness & non-objectness
+                obj_pred = torch.sigmoid(pred[..., 0]) > self.config['valid']['conf_threshold']
+                correct_obj += torch.sum(obj_pred[obj_mask] == target[..., 0][obj_mask])
+                correct_noobj += torch.sum(obj_pred[noobj_mask] == target[..., 0][noobj_mask])
+                # ============================================================================
+                curr_scale = pred.size(2) # pred: (N, 3, S, S, 5+classes)
+                curr_anchor = self.scaled_anchors[i] # curr_anchor: (3, 2)
+                bboxes = cells_to_bboxes(preds=pred,
+                                        anchors=curr_anchor,
+                                        scale=curr_scale)
+                for idx, bbox in enumerate(bboxes):
+                    batch_bboxes[idx] += bbox
 
-            # Upadte progress bar
-            mean_loss = sum(losses) / len(losses)
-            loop.set_postfix(loss=mean_loss)
+            true_bboxes = cells_to_bboxes(preds=target,
+                                        anchors=curr_anchor,
+                                        scale=curr_scale,
+                                        is_preds=False)
+            for idx in range(batch_size):
+                gt_bboxes = true_bboxes[idx]
+                pred_bboxes = batch_bboxes[idx]
+                nms_bboxes = non_max_suppression(
+                                bboxes=pred_bboxes,
+                                classes=list(range(self.config['dataset']['n_classes'])),
+                                iou_threshold=self.config['valid']['nms_iou_threshold'],
+                                prob_threshold=self.config['valid']['conf_threshold'],
+                                box_format='xywh',
+                                )
+                for nms_bbox in nms_bboxes:
+                    all_pred_bboxes.append([sample_idx]+nms_bbox)
+                for bbox in gt_bboxes:
+                    if bbox[0] > self.config['valid']['conf_threshold']:
+                        all_true_bboxes.append([sample_idx]+bbox)
 
-        # Logging (epoch)
-        epoch_loss = sum(losses) / len(losses)
-        self.board.add_scalar('Valid Loss', epoch_loss, global_step=self.current_epoch)
+                sample_idx += 1
+
+        acc_cls = (correct_class/(tot_obj+1e-6))*100
+        acc_obj = (correct_obj/(tot_obj+1e-6))*100
+        acc_noobj = (correct_noobj/(tot_noobj+1e-6))*100
+        mapval = mean_average_precision(
+                    all_pred_bboxes,
+                    all_true_bboxes,
+                    iou_threshold=self.config['valid']['map_iou_threshold'],
+                    n_classes=self.config['dataset']['n_classes'],
+                    box_format="xywh",
+                    )
+        print(acc_cls.item(), acc_obj.item(), acc_noobj.item(), mapval.item())
 
     def _save_checkpoint(self):
         checkpoint = {

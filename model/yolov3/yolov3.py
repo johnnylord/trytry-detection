@@ -58,7 +58,7 @@ class ScalePrediction(nn.Module):
         super().__init__()
         self.pred = nn.Sequential(
             CNNBlock(in_channels, 2*in_channels, kernel_size=3, padding=1),
-            CNNBlock(2*in_channels, (num_classes+5)*3, bn_act=False, kernel_size=1)
+            CNNBlock(2*in_channels, (5+num_classes)*3, bn_act=False, kernel_size=1)
             )
         self.num_classes = num_classes
 
@@ -67,7 +67,7 @@ class ScalePrediction(nn.Module):
         height, width = x.size(2), x.size(3)
         return (
             self.pred(x)
-            .reshape(batch_size, 3, self.num_classes+5, height, width)
+            .reshape(batch_size, 3, 5+self.num_classes, height, width)
             .permute(0, 1, 3, 4, 2)
             )
 
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     model = YOLOv3(in_channels=3, num_classes=num_classes)
     x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE))
     outs = model(x)
-    print("Output Shape: (N, num_anchors, img_height, img_width, num_class+5)")
+    print("Output Shape: (N, num_anchors, img_height, img_width, 5+num_class)")
     print("Scale #1:", outs[0].shape)
     print("Scale #2:", outs[1].shape)
     print("Scale #3:", outs[2].shape)

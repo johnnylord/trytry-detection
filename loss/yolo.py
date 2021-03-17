@@ -19,6 +19,19 @@ class YOLOLoss(nn.Module):
         self.lambda_obj = 1
 
     def forward(self, preds, target, anchors):
+        """Copmute yolo loss
+
+        Arguements:
+            preds (tensor): tensor of shape (N, 3, S, S, 5+C)
+            target (tensor): tensor of shape (N, 3, S, S, 6)
+            anchors (tensor): tensor of shape (3, 2)
+
+        Prediction format:
+            (conf, x, y, w, h, [classes:...])
+
+        Target format:
+            (conf, x, y, w, h, class_id)
+        """
         # target with -1 is ignored
         obj_mask = target[..., 0] == 1
         noobj_mask = target[..., 0] == 0
@@ -32,13 +45,14 @@ class YOLOLoss(nn.Module):
 
         # OBJECT LOSS
         # ===========================================
-        anchors = anchors.reshape(1, 3, 1, 1, 2)
-        x_cell = self.sigmoid(preds[..., 1:2])
-        y_cell = self.sigmoid(preds[..., 2:3])
-        wh_cell = torch.exp(preds[..., 3:5])*anchors
-        pred_bboxes = torch.cat([x_cell, y_cell, wh_cell], dim=-1)
-        ious = intersection_over_union(pred_bboxes[obj_mask],
-                                    target[..., 1:5][obj_mask]).detach()
+        anchors = anchors.reshape(1, 3, 1, 1, 2)        # (1, 3, S, S, 1)
+        x_cell = self.sigmoid(preds[..., 1:2])          # (N, 3, S, S, 1)
+        y_cell = self.sigmoid(preds[..., 2:3])          # (N, 3, S, S, 1)
+        wh_cell = torch.exp(preds[..., 3:5])*anchors    # (N, 3, S, S, 2)
+        pred_bboxes = torch.cat([x_cell, y_cell, wh_cell], dim=-1) # (N, 3, S, S, 4)
+        ious = intersection_over_union(
+                    pred_bboxes[obj_mask],
+                    target[..., 1:5][obj_mask]).detach()
         obj_loss = self.bce(
                 preds[..., 0:1][obj_mask],
                 ious*target[..., 0:1][obj_mask]
