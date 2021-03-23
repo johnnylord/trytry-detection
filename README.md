@@ -64,10 +64,11 @@ print("T3 shape:", targets[2].shape) # (3, 52, 52, 6)
 ```
 
 ## YOLOv3 Loss Calculation
-```python
-
-```
+The following diagram shows the ideal data format of output.
+![yololoss](https://i.imgur.com/j88Macw.png)
+> MSELoss is adopted to compute loss of bounding box coordinate  
+> BCELoss is adopted to compute loss of object probability  
+> CrossEntropy is adopted to compute loss of class prediction
 
 ## Training Procedure
-### 1. Train darknet53 on jmageNet dataset
-### 2. Train YOLOv3 with pretrained darknet53 backbone
+TODO
