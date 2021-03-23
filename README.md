@@ -4,12 +4,12 @@ This repo implements YOLOv3 from scratch with modified codes from [aladdinpersso
 
 ## YOLOv3 Model Prediction
 By feeding an image into `YOLOv3`, it will generate dense prediction of objects for each scale. For each cell in each scale, there are three anchors responsible for detecting objects, and each anchor will predict the `(prob, x, y, w, h, classes)`.
-> The output of YOLOv3 should be further processed as following:
-> prob => sigmoid(prob)
-> x\_offset => sigmoid(x)
-> y\_offset => sigmoid(y)
-> w\_cell => anchor\_width * torch.exp(w)
-> h\_cell => anchor\_height * torch.exp(h)
+> The output of YOLOv3 should be further processed as following:  
+> prob => sigmoid(prob)  
+> x\_offset => sigmoid(x)  
+> y\_offset => sigmoid(y)  
+> w\_cell => anchor\_width * torch.exp(w)  
+> h\_cell => anchor\_height * torch.exp(h)  
 > class\_idx => torch.argmax(classes)[0]
 ```python
 from model.yolov3 import YOLOv3
