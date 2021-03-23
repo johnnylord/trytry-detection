@@ -11,7 +11,7 @@ def plot_image(image, boxes, classes):
     height, width, _ = im.shape
 
     # Create figure and axes
-    fig, ax = plt.subplots(1)
+    fig, ax = plt.subplots(1, figsize=(8, 8))
     # Display the image
     ax.imshow(im)
 
