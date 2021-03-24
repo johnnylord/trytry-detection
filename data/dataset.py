@@ -54,7 +54,7 @@ class YOLODataset:
         self.scales = scales
         self.anchors = torch.tensor(anchors[0]+anchors[1]+anchors[2]) # (3*3, 2)
         self.n_anchors = self.anchors.size(0)
-        self.n_anchors_per_scale = self.n_anchors // 3
+        self.n_anchors_per_scale = self.n_anchors // len(scales)
         self.n_classes = n_classes
         self.ignore_iou_thresh = 0.5
 

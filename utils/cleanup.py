@@ -44,5 +44,4 @@ def non_max_suppression(bboxes, iou_threshold, prob_threshold, classes, box_form
                             box_format=box_format,
                             ).item() < iou_threshold
                         ]
-
     return bboxes_after_nms

@@ -21,23 +21,23 @@ def cells_to_bboxes(preds, anchors, scale, is_preds=True):
         anchors = anchors.reshape(1, len(anchors), 1, 1, 2) # (1, 3, 1, 1, 2)
         pred_bboxes[..., 0:2] = torch.sigmoid(pred_bboxes[..., 0:2])
         pred_bboxes[..., 2:] = torch.exp(pred_bboxes[..., 2:]) * anchors
-        scores = torch.sigmoid(pred_bboxes[..., 0:1])
+        scores = torch.sigmoid(preds[..., 0:1])
         best_class = torch.argmax(preds[..., 5:], dim=-1).unsqueeze(-1)
     else:
         scores = preds[..., 0:1]
         best_class = preds[..., 5:6]
 
-    cell_indices = ( # (N, 3, scale, scale-1, 1)
+    cell_indices = ( # (N, 3, scale, scale, 1)
         torch.arange(scale)
         .repeat(batch_size, n_anchors, scale, 1)
         .unsqueeze(-1)
         .to(pred_bboxes.device)
         )
-    x = 1 / scale * (pred_bboxes[..., 0:1] + cell_indices)
-    y = 1 / scale * (pred_bboxes[..., 1:2] + cell_indices.permute(0, 1, 3, 2, 4))
-    w_h = 1 / scale * pred_bboxes[..., 2:4]
+    x = (1/scale)*(pred_bboxes[..., 0:1]+cell_indices)
+    y = (1/scale)*(pred_bboxes[..., 1:2]+cell_indices.permute(0, 1, 3, 2, 4))
+    wh = (1/scale)*(pred_bboxes[..., 2:4])
     bboxes = (
-            torch.cat((best_class, scores, x, y, w_h), dim=-1)
+            torch.cat((best_class, scores, x, y, wh), dim=-1)
             .reshape(batch_size, n_anchors*scale*scale, 6)
             )
-    return bboxes.tolist()
+    return bboxes

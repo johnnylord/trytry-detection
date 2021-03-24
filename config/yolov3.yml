@@ -2,14 +2,15 @@
 agent: "YOLOv3Agent"
 
 train:
-  device: "cuda:2"
+  device: "cuda:0"
   logdir: "run/yolov3_voc"
-  n_epochs: 100
-  valid_cycle: 3
+  n_epochs: 160
+  valid_epoch: 90
+  valid_cycle: 5
   resume: false
 
 valid:
-  conf_threshold: 0.05
+  conf_threshold: 0.2
   map_iou_threshold: 0.5
   nms_iou_threshold: 0.45
 
@@ -20,11 +21,13 @@ dataset:
   n_classes: 20
   # Training data set
   train:
-    csv: "download/PASCAL_VOC/train.csv"
+    #csv: "download/PASCAL_VOC/train.csv"
+    csv: "download/PASCAL_VOC/100examples.csv"
     img_root: "download/PASCAL_VOC/images"
     label_root: "download/PASCAL_VOC/labels"
   # Validation data set
   valid:
+    #csv: "download/PASCAL_VOC/test.csv"
     csv: "download/PASCAL_VOC/100examples.csv"
     img_root: "download/PASCAL_VOC/images"
     label_root: "download/PASCAL_VOC/labels"
@@ -43,7 +46,13 @@ model:
   in_channels: 3
   num_classes: 20
 
-# Adam optimizer
+# SGD optimizer
 optimizer:
-  lr: 0.00001
-  weight_decay: 0.0001
+  lr: 0.001
+  momentum: 0.9
+  weight_decay: 0.0005
+
+# MultiStepLR
+scheduler:
+  milestones: [60, 90]
+  gamma: 0.1

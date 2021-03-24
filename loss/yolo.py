@@ -2,7 +2,7 @@ import random
 import torch
 import torch.nn as nn
 
-from utils.cleanup import intersection_over_union
+from utils.metric import intersection_over_union
 
 class YOLOLoss(nn.Module):
     def __init__(self):
@@ -30,7 +30,7 @@ class YOLOLoss(nn.Module):
             (conf, x, y, w, h, [classes:...])
 
         Target format:
-            (conf, x, y, w, h, class_id)
+            (conf, x_cell, y_cell, w_cell, h_cell, class_id)
         """
         # target with -1 is ignored
         obj_mask = target[..., 0] == 1
@@ -71,9 +71,16 @@ class YOLOLoss(nn.Module):
             target[..., 5][obj_mask].long()
             )
 
-        return (
+        loss = {
+            'obj_loss': obj_loss,
+            'noobj_loss': noobj_loss,
+            'coord_loss': coord_loss,
+            'class_loss': class_loss,
+            'total_loss': (
                 self.lambda_coord * coord_loss
                 + self.lambda_obj * obj_loss
                 + self.lambda_noobj * noobj_loss
                 + self.lambda_class * class_loss
-                )
+            )
+        }
+        return loss
