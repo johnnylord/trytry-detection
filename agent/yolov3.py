@@ -7,6 +7,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
+from warmup_scheduler import GradualWarmupScheduler
 
 from data.dataset import YOLODataset
 from data.transform import get_yolo_transform
@@ -87,9 +88,13 @@ class YOLOv3Agent:
                             momentum=config['optimizer']['momentum'],
                             weight_decay=config['optimizer']['weight_decay']
                             )
-        self.scheduler = MultiStepLR(self.optimizer,
-                                    milestones=config['scheduler']['milestones'],
-                                    gamma=config['scheduler']['gamma'])
+        scheduler = MultiStepLR(self.optimizer,
+                                milestones=config['scheduler']['milestones'],
+                                gamma=config['scheduler']['gamma'])
+        self.scheduler = GradualWarmupScheduler(self.optimizer,
+                                                multiplier=1.,
+                                                total_epoch=10,
+                                                after_scheduler=scheduler)
         # Loss function
         self.loss_fn = YOLOLoss()
 
@@ -129,7 +134,7 @@ class YOLOv3Agent:
         self.model.train()
         loop = tqdm(self.train_loader,
                     leave=True,
-                    desc=f"Train Epoch {self.current_epoch}/{self.config['train']['n_epochs']}")
+                    desc=f"Train Epoch:{self.current_epoch}/{self.config['train']['n_epochs']}")
         total_losses = []
         obj_losses = []
         noobj_losses = []
@@ -213,7 +218,7 @@ class YOLOv3Agent:
         self.model.eval()
         loop = tqdm(self.valid_loader,
                     leave=True,
-                    desc=f"Valid Epoch {self.current_epoch}/{self.config['train']['n_epochs']}")
+                    desc=f"Valid Epoch:{self.current_epoch}/{self.config['train']['n_epochs']}")
         total_losses = []
         obj_losses = []
         noobj_losses = []
@@ -330,6 +335,7 @@ class YOLOv3Agent:
             'obj': acc_obj.item(),
             'noobj': acc_noobj.item()
             }
+        print("ACCs:", accs)
         return accs
 
     def _check_map(self):
@@ -400,6 +406,7 @@ class YOLOv3Agent:
                     n_classes=self.config['dataset']['n_classes'],
                     box_format="xywh",
                     )
+        print("mAP@0.5:", mapval.item())
         return mapval.item()
 
     def _save_checkpoint(self):

@@ -21,14 +21,12 @@ dataset:
   n_classes: 20
   # Training data set
   train:
-    #csv: "download/PASCAL_VOC/train.csv"
-    csv: "download/PASCAL_VOC/100examples.csv"
+    csv: "download/PASCAL_VOC/train.csv"
     img_root: "download/PASCAL_VOC/images"
     label_root: "download/PASCAL_VOC/labels"
   # Validation data set
   valid:
-    #csv: "download/PASCAL_VOC/test.csv"
-    csv: "download/PASCAL_VOC/100examples.csv"
+    csv: "download/PASCAL_VOC/test.csv"
     img_root: "download/PASCAL_VOC/images"
     label_root: "download/PASCAL_VOC/labels"
   anchors: [
@@ -38,7 +36,7 @@ dataset:
   ]
 
 dataloader:
-  batch_size: 32
+  batch_size: 128
   num_workers: 4
 
 # YOLOv3 Model

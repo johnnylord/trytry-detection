@@ -1,8 +1,10 @@
 import os
 import os.path as osp
 import yaml
+from collections import OrderedDict
 
 import torch
+from torch.hub import load_state_dict_from_url
 import torch.nn as nn
 
 
@@ -72,9 +74,16 @@ class ScalePrediction(nn.Module):
             )
 
 class YOLOv3(nn.Module):
+    BACKBONE_WEIGHTS = 'https://www.dropbox.com/s/cd6aufj1wwexsbp/darknet448.pth?dl=1'
     BACKBONE_PATH = osp.join(osp.dirname(osp.abspath(__file__)), 'backbone.yml')
     DETECTOR_PATH = osp.join(osp.dirname(osp.abspath(__file__)), 'detector.yml')
-    def __init__(self, in_channels, num_classes, backbone_path=None, detector_path=None):
+    def __init__(self,
+                in_channels,
+                num_classes,
+                backbone_path=None,
+                detector_path=None,
+                pretrain_backbone=True,
+                pretrain_detector=False):
         super().__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
@@ -84,6 +93,16 @@ class YOLOv3(nn.Module):
         detector_path = self.DETECTOR_PATH if detector_path is None else detector_path
         self.backbone = self._parse_yaml(backbone_path)
         self.detector = self._parse_yaml(detector_path)
+        # Initialize backbone model
+        if pretrain_backbone:
+            state_dict = load_state_dict_from_url(YOLOv3.BACKBONE_WEIGHTS)
+            new_state_dict = OrderedDict()
+            for k, v in state_dict.items():
+                if not k.startswith('feature'):
+                    continue
+                name = '.'.join(k.split('.')[1:])
+                new_state_dict[name] = v.cpu()
+            self.backbone.load_state_dict(new_state_dict)
 
     def forward(self, x):
         outputs = [] # for each scale
@@ -152,7 +171,6 @@ class YOLOv3(nn.Module):
 
         self.cur_channels = in_channels
         return layers
-
 
 if __name__ == "__main__":
     num_classes = 20
