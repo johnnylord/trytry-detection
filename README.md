@@ -72,3 +72,8 @@ The following diagram shows the ideal data format of output.
 
 ## Training Procedure
 TODO
+
+## TODO
+- [ ] Fix Objectness imbalanced with Focal Loss
+- [ ] Fix Bbox Regression Precision with GIoU Loss
+- [ ] Improve NMS inference speed on cuda
