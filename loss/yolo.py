@@ -77,7 +77,7 @@ def bbox_iou(bboxes1, bboxes2, mode='iou'):
         if mode == 'diou':
             return iou - u
         elif mode == 'ciou':
-            return iou - u - alpha * v
+            return torch.clamp(iou - u - alpha * v, min=-1.0, max=1.0)
         else:
             convex_area = convex_w * convex_h + eplison
             return iou - ((convex_area-union)/convex_area)
