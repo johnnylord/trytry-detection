@@ -82,10 +82,9 @@ class YOLOv3Agent:
 
         # Optimizer
         self.scaler = torch.cuda.amp.GradScaler()
-        self.optimizer = optim.SGD(
+        self.optimizer = optim.Adam(
                             params=self.model.parameters(),
                             lr=config['optimizer']['lr'],
-                            momentum=config['optimizer']['momentum'],
                             weight_decay=config['optimizer']['weight_decay']
                             )
         scheduler = MultiStepLR(self.optimizer,
@@ -131,15 +130,22 @@ class YOLOv3Agent:
         pass
 
     def _train_one_epoch(self):
-        self.model.train()
+        n_epochs = self.config['train']['n_epochs']
+        current_epoch = self.current_epoch
+        current_lr = self.optimizer.param_groups[0]['lr']
         loop = tqdm(self.train_loader,
                     leave=True,
-                    desc=f"Train Epoch:{self.current_epoch}/{self.config['train']['n_epochs']}")
+                    desc=(
+                        f"Train Epoch:{current_epoch}/{n_epochs}"
+                        f", LR: {current_lr:.4f}"
+                        )
+                    )
         total_losses = []
         obj_losses = []
         noobj_losses = []
-        coord_losses = []
+        box_losses = []
         class_losses = []
+        self.model.train()
         for batch_idx, (imgs, targets) in enumerate(loop):
             # Move device
             imgs = imgs.to(self.device)             # (N, 3, 416, 416)
@@ -168,10 +174,10 @@ class YOLOv3Agent:
                     + s2_loss['noobj_loss']
                     + s3_loss['noobj_loss']
                     )
-                coord_loss = (
-                    s1_loss['coord_loss']
-                    + s2_loss['coord_loss']
-                    + s3_loss['coord_loss']
+                box_loss = (
+                    s1_loss['box_loss']
+                    + s2_loss['box_loss']
+                    + s3_loss['box_loss']
                     )
                 class_loss = (
                     s1_loss['class_loss']
@@ -182,7 +188,7 @@ class YOLOv3Agent:
             total_losses.append(total_loss.item())
             obj_losses.append(obj_loss.item())
             noobj_losses.append(noobj_loss.item())
-            coord_losses.append(coord_loss.item())
+            box_losses.append(box_loss.item())
             class_losses.append(class_loss.item())
             # Update Parameters
             self.optimizer.zero_grad()
@@ -193,37 +199,44 @@ class YOLOv3Agent:
             mean_total_loss = sum(total_losses)/len(total_losses)
             mean_obj_loss = sum(obj_losses)/len(obj_losses)
             mean_noobj_loss = sum(noobj_losses)/len(noobj_losses)
-            mean_coord_loss = sum(coord_losses)/len(coord_losses)
+            mean_box_loss = sum(box_losses)/len(box_losses)
             mean_class_loss = sum(class_losses)/len(class_losses)
             loop.set_postfix(
                             loss=mean_total_loss,
+                            cls=mean_class_loss,
+                            box=mean_box_loss,
                             obj=mean_obj_loss,
                             noobj=mean_noobj_loss,
-                            coord=mean_coord_loss,
-                            cls=mean_class_loss,
                             )
         # Logging (epoch)
         epoch_total_loss = sum(total_losses)/len(total_losses)
         epoch_obj_loss = sum(obj_losses)/len(obj_losses)
         epoch_noobj_loss = sum(noobj_losses)/len(noobj_losses)
-        epoch_coord_loss = sum(coord_losses)/len(coord_losses)
+        epoch_box_loss = sum(box_losses)/len(box_losses)
         epoch_class_loss = sum(class_losses)/len(class_losses)
         self.board.add_scalar('Train Loss', epoch_total_loss, global_step=self.current_epoch)
+        self.board.add_scalar('Train BOX Loss', epoch_box_loss, global_step=self.current_epoch)
         self.board.add_scalar('Train OBJ Loss', epoch_obj_loss, global_step=self.current_epoch)
         self.board.add_scalar('Train NOOBJ Loss', epoch_noobj_loss, global_step=self.current_epoch)
-        self.board.add_scalar('Train COORD Loss', epoch_coord_loss, global_step=self.current_epoch)
         self.board.add_scalar('Train CLASS Loss', epoch_class_loss, global_step=self.current_epoch)
 
     def _validate(self):
-        self.model.eval()
+        n_epochs = self.config['train']['n_epochs']
+        current_epoch = self.current_epoch
+        current_lr = self.optimizer.param_groups[0]['lr']
         loop = tqdm(self.valid_loader,
                     leave=True,
-                    desc=f"Valid Epoch:{self.current_epoch}/{self.config['train']['n_epochs']}")
+                    desc=(
+                        f"Valid Epoch:{current_epoch}/{n_epochs}"
+                        f", LR: {current_lr:.4f}"
+                        )
+                    )
         total_losses = []
         obj_losses = []
         noobj_losses = []
-        coord_losses = []
+        box_losses = []
         class_losses = []
+        self.model.eval()
         for batch_idx, (imgs, targets) in enumerate(loop):
             # Move device
             imgs = imgs.to(self.device)             # (N, 3, 416, 416)
@@ -253,10 +266,10 @@ class YOLOv3Agent:
                     + s2_loss['noobj_loss']
                     + s3_loss['noobj_loss']
                     )
-                coord_loss = (
-                    s1_loss['coord_loss']
-                    + s2_loss['coord_loss']
-                    + s3_loss['coord_loss']
+                box_loss = (
+                    s1_loss['box_loss']
+                    + s2_loss['box_loss']
+                    + s3_loss['box_loss']
                     )
                 class_loss = (
                     s1_loss['class_loss']
@@ -267,31 +280,31 @@ class YOLOv3Agent:
             total_losses.append(total_loss.item())
             obj_losses.append(obj_loss.item())
             noobj_losses.append(noobj_loss.item())
-            coord_losses.append(coord_loss.item())
+            box_losses.append(box_loss.item())
             class_losses.append(class_loss.item())
             # Upadte progress bar
             mean_total_loss = sum(total_losses)/len(total_losses)
             mean_obj_loss = sum(obj_losses)/len(obj_losses)
             mean_noobj_loss = sum(noobj_losses)/len(noobj_losses)
-            mean_coord_loss = sum(coord_losses)/len(coord_losses)
+            mean_box_loss = sum(box_losses)/len(box_losses)
             mean_class_loss = sum(class_losses)/len(class_losses)
             loop.set_postfix(
                             loss=mean_total_loss,
+                            cls=mean_class_loss,
+                            box=mean_box_loss,
                             obj=mean_obj_loss,
                             noobj=mean_noobj_loss,
-                            coord=mean_coord_loss,
-                            cls=mean_class_loss,
                             )
         # Logging (epoch)
         epoch_total_loss = sum(total_losses)/len(total_losses)
         epoch_obj_loss = sum(obj_losses)/len(obj_losses)
         epoch_noobj_loss = sum(noobj_losses)/len(noobj_losses)
-        epoch_coord_loss = sum(coord_losses)/len(coord_losses)
+        epoch_box_loss = sum(box_losses)/len(box_losses)
         epoch_class_loss = sum(class_losses)/len(class_losses)
         self.board.add_scalar('Valid Loss', epoch_total_loss, global_step=self.current_epoch)
+        self.board.add_scalar('Valid BOX Loss', epoch_box_loss, global_step=self.current_epoch)
         self.board.add_scalar('Valid OBJ Loss', epoch_obj_loss, global_step=self.current_epoch)
         self.board.add_scalar('Valid NOOBJ Loss', epoch_noobj_loss, global_step=self.current_epoch)
-        self.board.add_scalar('Valid COORD Loss', epoch_coord_loss, global_step=self.current_epoch)
         self.board.add_scalar('Valid CLASS Loss', epoch_class_loss, global_step=self.current_epoch)
 
     def _check_accuracy(self):

@@ -5,8 +5,8 @@ def iou_width_height(boxes1, boxes2):
     """Compute iou between two bboxes set with width and height only
 
     Arguments:
-        boxes1 (tensor): width and height of the first bounding boxes
-        boxes2 (tensor): width and height of the second bounding boxes
+        boxes1 (tensor): (N, 2) width and height of the first bounding boxes
+        boxes2 (tensor): (N, 2) width and height of the second bounding boxes
 
     Returns:
         tensor: intersection over unoin of the corresponding obxes

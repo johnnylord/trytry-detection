@@ -97,8 +97,6 @@ class FocalLoss(nn.Module):
 
     def forward(self, pred, true):
         loss = self.loss_fcn(pred, true)
-        # p_t = torch.exp(-loss)
-        # loss *= self.alpha * (1.000001 - p_t) ** self.gamma  # non-zero power for gradient stability
 
         # TF implementation https://github.com/tensorflow/addons/blob/v0.7.1/tensorflow_addons/losses/focal_loss.py
         pred_prob = torch.sigmoid(pred)  # prob from logits
@@ -119,13 +117,14 @@ class YOLOLoss(nn.Module):
     def __init__(self):
         super().__init__()
         self.bce = FocalLoss(nn.BCEWithLogitsLoss())
+        self.mse = nn.MSELoss()
         self.sigmoid = nn.Sigmoid()
 
         # Constants signifying how much to pay for each respective part of the loss
-        self.lambda_class = 0.5
-        self.lambda_coord = 0.05
-        self.lambda_obj = 1.0
-        self.lambda_noobj = 1.0
+        self.lambda_class = 1
+        self.lambda_noobj = 10
+        self.lambda_obj = 1
+        self.lambda_box = 10
 
     def forward(self, preds, target, anchors):
         """Copmute yolo loss
@@ -136,10 +135,10 @@ class YOLOLoss(nn.Module):
             anchors (tensor): tensor of shape (3, 2)
 
         Prediction format:
-            (conf, x, y, w, h, [classes:...])
+            (prob_raw, x_raw, y_raw, w_raw, h_raw, [classes_raw...])
 
         Target format:
-            (conf, x_cell, y_cell, w_cell, h_cell, class_id)
+            (prob, x_cell, y_cell, w_cell, h_cell, class)
         """
         device = preds.device
         # Normalize anchor size
@@ -154,14 +153,13 @@ class YOLOLoss(nn.Module):
                         preds[..., 0:1][noobj_mask],
                         target[..., 0:1][noobj_mask]
                         )
-
         # OBJECT LOSS
         # ===========================================
-        anchors = anchors.reshape(1, 3, 1, 1, 2)                            # (1, 3, 1, 1, 2)
+        anchors = anchors.reshape(1, 3, 1, 1, 2)            # (1, 3, 1, 1, 2)
         # Prediction bboxes
-        xy_cell = 2.0*self.sigmoid(preds[..., 1:3])-0.5                     # (N, 3, S, S, 2)
-        wh_cell = ((2.0*self.sigmoid(preds[..., 3:5]))**2)*anchors          # (N, 3, S, S, 2)
-        pred_bboxes = torch.cat([xy_cell, wh_cell], dim=-1)                 # (N, 3, S, S, 4)
+        xy_cell = self.sigmoid(preds[..., 1:3])             # (N, 3, S, S, 2)
+        wh_cell = torch.exp(preds[..., 3:5])*anchors        # (N, 3, S, S, 2)
+        pred_bboxes = torch.cat([xy_cell, wh_cell], dim=-1) # (N, 3, S, S, 4)
         # Groundtruth bboxes
         xy_cell = target[..., 1:3]
         wh_cell = target[..., 3:5]
@@ -177,24 +175,26 @@ class YOLOLoss(nn.Module):
                         )
         # BOX COORDINATEDS LOSS
         # ===========================================
-        coord_loss = (1.0-ciou).mean()
+        preds[..., 1:3] = self.sigmoid(preds[..., 1:3])
+        target[..., 3:5] = torch.log(1e-16 + target[..., 3:5]/anchors)
+        box_loss = self.mse(ciou, torch.ones_like(ciou, device=device))
+        box_loss += self.mse(preds[..., 1:5][obj_mask], target[..., 1:5][obj_mask])
 
         # CLASS LOSS
         # ===========================================
-        logits = torch.full_like(preds[..., 5:], 0., device=device)
-        labels = logits[obj_mask]
-        labels[range(len(labels)), target[..., 5][obj_mask].long()] = 1.0
-        class_loss = self.bce(
-                            preds[..., 5:][obj_mask],
-                            labels.long()
-                            )
+        pred_labels = preds[..., 5:][obj_mask]
+        target_labels = torch.full_like(preds[..., 5:], 0., device=device)[obj_mask]
+        target_labels[range(len(target_labels)), target[..., 5][obj_mask].long()] = 1.0
+        class_loss = self.bce(pred_labels, target_labels)
+
+        # Aggregate Loss
         loss = {
+            'box_loss': box_loss,
             'obj_loss': obj_loss,
             'noobj_loss': noobj_loss,
-            'coord_loss': coord_loss,
             'class_loss': class_loss,
             'total_loss': (
-                self.lambda_coord * coord_loss
+                self.lambda_box * box_loss
                 + self.lambda_obj * obj_loss
                 + self.lambda_noobj * noobj_loss
                 + self.lambda_class * class_loss

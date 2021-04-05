@@ -4,9 +4,9 @@ agent: "YOLOv3Agent"
 train:
   device: "cuda:0"
   logdir: "run/yolov3_voc"
-  n_epochs: 160
+  n_epochs: 100
   valid_epoch: 90
-  valid_cycle: 5
+  valid_cycle: 3
   resume: false
 
 valid:
@@ -36,7 +36,7 @@ dataset:
   ]
 
 dataloader:
-  batch_size: 128
+  batch_size: 64
   num_workers: 4
 
 # YOLOv3 Model
@@ -44,11 +44,10 @@ model:
   in_channels: 3
   num_classes: 20
 
-# SGD optimizer
+# Adam optimizer
 optimizer:
   lr: 0.001
-  momentum: 0.9
-  weight_decay: 0.0005
+  weight_decay: 0.0001
 
 # MultiStepLR
 scheduler:

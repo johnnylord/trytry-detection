@@ -19,8 +19,8 @@ def cells_to_bboxes(preds, anchors, scale, is_preds=True):
     pred_bboxes = preds[..., 1:5] # (N, 3, scale, scale, 4)
     if is_preds:
         anchors = anchors.reshape(1, len(anchors), 1, 1, 2) # (1, 3, 1, 1, 2)
-        pred_bboxes[..., 0:2] = (2.0*torch.sigmoid(pred_bboxes[..., 0:2]))-0.5
-        pred_bboxes[..., 2:] = ((2.0*torch.sigmoid(pred_bboxes[..., 2:]))**2)*anchors
+        pred_bboxes[..., 0:2] = torch.sigmoid(pred_bboxes[..., 0:2])
+        pred_bboxes[..., 2:] = torch.exp(pred_bboxes[..., 2:])*anchors
         scores = torch.sigmoid(preds[..., 0:1])
         best_class = torch.argmax(preds[..., 5:], dim=-1).unsqueeze(-1)
     else:

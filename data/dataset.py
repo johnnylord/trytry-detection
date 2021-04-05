@@ -53,8 +53,7 @@ class YOLODataset:
         self.transform = transform
         self.scales = scales
         self.anchors = torch.tensor(anchors[0]+anchors[1]+anchors[2]) # (3*3, 2)
-        self.n_anchors = self.anchors.size(0)
-        self.n_anchors_per_scale = self.n_anchors // len(scales)
+        self.n_anchors_per_scale = self.anchors.size(0) // len(scales)
         self.n_classes = n_classes
         self.ignore_iou_thresh = 0.5
 
@@ -76,13 +75,13 @@ class YOLODataset:
             bboxes = augmentations['bboxes']
 
         # Assign bboxes to their proper grid cell (Might assign to cross scale)
-        # Each cell: (prob, x, y, w, h, c)
+        # Each cell: (prob, x_cell, y_cell, w_cell, h_cell, class)
         targets = [ torch.zeros((self.n_anchors_per_scale, scale, scale, 6))
                     for scale in self.scales ]
         for bbox in bboxes:
             iou_anchors = iou_wh(torch.tensor(bbox[2:4]), self.anchors)
             anchor_indices = iou_anchors.argsort(descending=True, dim=0)
-            x, y, width, height, class_label = bbox
+            x, y, w, h, class_label = bbox
 
             # At most one anchor will be assigned to bbox in each scale
             # At least one anchor will be assigned to bbox (the most likely one)
@@ -95,20 +94,17 @@ class YOLODataset:
                 i, j = int(scale*y), int(scale*x)
 
                 anchor_taken = targets[scale_idx][anchor_on_scale, i, j, 0]
-                if not anchor_taken and not has_anchor_in_scale[scale_idx]:
+                if (
+                    not anchor_taken
+                    and not has_anchor_in_scale[scale_idx]
+                ):
                     targets[scale_idx][anchor_on_scale, i, j, 0] = 1.
-                    x_cell, y_cell = (x*scale-j), (y*scale-i) # [0 - 1]
-                    width_cell, height_cell = (
-                        width*scale,
-                        height*scale
-                    ) # can be greater than 1 since it's relative to cell
-                    coordinates = torch.tensor(
-                        [x_cell, y_cell, width_cell, height_cell]
-                    )
+                    x_cell, y_cell = (x*scale-j), (y*scale-i)
+                    w_cell, h_cell = (w*scale), (h*scale)
+                    coordinates = torch.tensor([x_cell, y_cell, w_cell, h_cell])
                     targets[scale_idx][anchor_on_scale, i, j, 1:5] = coordinates
                     targets[scale_idx][anchor_on_scale, i, j, 5] = int(class_label)
                     has_anchor_in_scale[scale_idx] = True
-
                 elif (
                     not anchor_taken
                     and iou_anchors[anchor_idx] > self.ignore_iou_thresh
