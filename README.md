@@ -1,16 +1,21 @@
-# TryTry-Detection
+# trytry-detection
 
-This repo implements YOLOv3 from scratch with modified codes from [aladdinpersson](https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3).
+This repo implements yolov3 from scratch with modified codes from [aladdinpersson](https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3).
 
-## YOLOv3 Model Prediction
-By feeding an image into `YOLOv3`, it will generate dense prediction of objects for each scale. For each cell in each scale, there are three anchors responsible for detecting objects, and each anchor will predict the `(prob, x, y, w, h, classes)`.
-> The output of YOLOv3 should be further processed as following:  
-> prob => sigmoid(prob)  
-> x\_offset => sigmoid(x)  
-> y\_offset => sigmoid(y)  
-> w\_cell => anchor\_width * torch.exp(w)  
-> h\_cell => anchor\_height * torch.exp(h)  
-> class\_idx => torch.argmax(classes)[0]
+## Download dataset
+Thanks to [aladdinperson](https://github.com/aladdinpersson), we can directly download organzied dataset from his kaggle account.
+- [pascal voc2012 dataset](https://www.kaggle.com/aladdinpersson/pascal-voc-dataset-used-in-yolov3-video)
+- [coco2014 dataset](https://www.kaggle.com/dataset/79abcc2659dc745fddfba1864438afb2fac3fabaa5f37daa8a51e36466db101e)
+
+## YOLOv3 model prediction
+By feeding an image into `YOLOv3`, it will generate dense prediction of objects for each scale. For each cell in each scale, there are three anchors responsible for detecting objects, and each anchor will predict the `(prob_raw, x_raw, y_raw, w_raw, h_raw, classes_raw)`.
+> the output of YOLOv3 should be further processed as following:  
+> prob => sigmoid(prob\_raw)  
+> x\_cell => sigmoid(x\_raw)  
+> y\_cell => sigmoid(y\_raw)  
+> w\_cell => anchor\_w * torch.exp(w\_raw)  
+> h\_cell => anchor\_h * torch.exp(h\_raw)  
+> class => torch.argmax(classes\_raw)[0]
 ```python
 from model.yolov3 import YOLOv3
 
@@ -23,57 +28,49 @@ model = YOLOv3(in_channels=in_channels,
 imgs = torch.randn((1, 3, 416, 416))
 outs = model(imgs)
 
-print("Scale(13):", outs[0].shape) # (1, 3, 13, 13, 25)
-print("Scale(26):", outs[1].shape) # (1, 3, 26, 26, 25)
-print("Scale(52):", outs[2].shape) # (1, 3, 52, 52, 25)
+print("scale(13):", outs[0].shape) # (1, 3, 13, 13, 25)
+print("scale(26):", outs[1].shape) # (1, 3, 26, 26, 25)
+print("scale(52):", outs[2].shape) # (1, 3, 52, 52, 25)
 ```
 
-## YOLOv3 Dataset Groundtruth
-The groundtruth label for each image is the position information of each object in the image. Specifically, there are three kinds of target labels representing ground truth object position in each scale. The label for each grid cell is `(prob, x_offset, y_offset, w_cell, h_cell, class_idx)`.
+## YOLOv3 dataset groundtruth
+The groundtruth label for each image is the position information of each object in the image. Specifically, there are three kinds of target labels representing ground truth object position in each scale. the label for each grid cell is `(prob, x_offset, y_offset, w_cell, h_cell, class)`.
 ```python
 from data.dataset import YOLODataset
 from data.transform import get_yolo_transform
 
-# Hyperparameters
-CSV_PATH = 'download/PASCAL_VOC/2examples.csv'
-IMG_DIR = 'download/PASCAL_VOC/images/'
-LABEL_DIR = 'download/PASCAL_VOC/labels/'
-IMG_SIZE = 416
-SCALES = [13, 26, 52]
-ANCHORS = [
-    [(0.28, 0.22), (0.38, 0.48), (0.9, 0.78)],
-    [(0.07, 0.15), (0.15, 0.11), (0.14, 0.29)],
-    [(0.02, 0.03), (0.04, 0.07), (0.08, 0.06)],
+# hyperparameters
+csv_path = 'download/pascal_voc/test.csv'
+img_dir = 'download/pascal_voc/images/'
+label_dir = 'download/pascal_voc/labels/'
+img_size = 416
+scales = [13, 26, 52]
+anchors = [
+    [(0.28, 0.22), (0.38, 0.48), (0.9, 0.78)],  # scale 13
+    [(0.07, 0.15), (0.15, 0.11), (0.14, 0.29)], # scale 26
+    [(0.02, 0.03), (0.04, 0.07), (0.08, 0.06)], # scale 52
 ] # (3, 3, 2)
 
-# Load Dataset
-transform = get_yolo_transform(img_size=IMG_SIZE, mode='test')
-dataset = YOLODataset(csv_file=CSV_PATH,
-                    img_dir=IMG_DIR,
-                    label_dir=LABEL_DIR,
-                    anchors=ANCHORS,
+# load dataset
+transform = get_yolo_transform(img_size=img_size, mode='test')
+dataset = YOLODataset(csv_file=csv_path,
+                    img_dir=img_dir,
+                    label_dir=label_dir,
+                    anchors=anchors,
                     transform=transform)
-# Peek One Sample
+# peek one sample
 img, targets = dataset[0]
 
-print("Img shape:", img.shape) # (3, 416, 416)
-print("Number of targets:", len(targets)) # 3
-print("T1 shape:", targets[0].shape) # (3, 13, 13, 6)
-print("T2 shape:", targets[1].shape) # (3, 26, 26, 6)
-print("T3 shape:", targets[2].shape) # (3, 52, 52, 6)
+print("img shape:", img.shape) # (3, 416, 416)
+print("number of targets:", len(targets)) # 3
+print("t1 shape:", targets[0].shape) # (3, 13, 13, 6)
+print("t2 shape:", targets[1].shape) # (3, 26, 26, 6)
+print("t3 shape:", targets[2].shape) # (3, 52, 52, 6)
 ```
 
-## YOLOv3 Loss Calculation
-The following diagram shows the ideal data format of output.
-![yololoss](https://i.imgur.com/j88Macw.png)
-> MSELoss is adopted to compute loss of bounding box coordinate  
-> BCELoss is adopted to compute loss of object probability  
-> CrossEntropy is adopted to compute loss of class prediction
-
-## Training Procedure
-TODO
-
 ## TODO
-- [ ] Fix Objectness imbalanced with Focal Loss
-- [ ] Fix Bbox Regression Precision with GIoU Loss
-- [ ] Improve NMS inference speed on cuda
+- [ ] fix objectness imbalanced with focal loss
+- [ ] fix bbox regression precision with ciou loss
+- [ ] using onecycle learning rate scheduler
+- [ ] loss reweighting in different scale
+- [ ] improve nms inference speed on cuda
