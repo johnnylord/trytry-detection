@@ -70,6 +70,6 @@ def mean_average_precision(
         recalls = torch.cat([torch.tensor([0]), recalls])
         precisions = torch.divide(TP_cumsum, (TP_cumsum+FP_cumsum+epsilon))
         precisions = torch.cat([torch.tensor([1]), precisions])
-        average_precisions.append(torch.trapz(precisions, recalls))
+        average_precisions.append(torch.trapz(y=precisions, x=recalls))
 
     return sum(average_precisions) / len(average_precisions)

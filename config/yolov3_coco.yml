@@ -2,16 +2,16 @@
 agent: "YOLOv3Agent"
 
 train:
-  device: "cuda:0"
-  logdir: "run/yolov3_voc"
+  device: "cuda:1"
+  logdir: "run/yolov3_coco_ciou"
   n_epochs: 100
   valid_epoch: 90
-  valid_cycle: 3
+  valid_cycle: 2
   resume: false
+  final: false
 
 valid:
-  conf_threshold: 0.2
-  map_iou_threshold: 0.5
+  conf_threshold: 0.5
   nms_iou_threshold: 0.45
 
 # PASCAL_VOC Dataset
@@ -21,14 +21,14 @@ dataset:
   n_classes: 20
   # Training data set
   train:
-    csv: "download/PASCAL_VOC/train.csv"
-    img_root: "download/PASCAL_VOC/images"
-    label_root: "download/PASCAL_VOC/labels"
+    csv: "download/COCO/train.csv"
+    img_root: "download/COCO/images"
+    label_root: "download/COCO/labels"
   # Validation data set
   valid:
-    csv: "download/PASCAL_VOC/test.csv"
-    img_root: "download/PASCAL_VOC/images"
-    label_root: "download/PASCAL_VOC/labels"
+    csv: "download/COCO/test.csv"
+    img_root: "download/COCO/images"
+    label_root: "download/COCO/labels"
   anchors: [
     [[0.28, 0.22], [0.38, 0.48], [0.9, 0.78]], # Scale #1 anchor box
     [[0.07, 0.15], [0.15, 0.11], [0.14, 0.29]],# Scale #2 anchor box
@@ -42,14 +42,9 @@ dataloader:
 # YOLOv3 Model
 model:
   in_channels: 3
-  num_classes: 20
+  num_classes: 80
 
 # Adam optimizer
 optimizer:
   lr: 0.001
   weight_decay: 0.0001
-
-# MultiStepLR
-scheduler:
-  milestones: [60, 90]
-  gamma: 0.1

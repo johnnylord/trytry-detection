@@ -87,23 +87,20 @@ def bbox_iou(bboxes1, bboxes2, mode='iou'):
 
 class FocalLoss(nn.Module):
     # Wraps focal loss around existing loss_fcn(), i.e. criteria = FocalLoss(nn.BCEWithLogitsLoss(), gamma=1.5)
-    def __init__(self, loss_fcn, gamma=1.5, alpha=0.25):
+    def __init__(self, loss_fcn, gamma=1.5):
         super(FocalLoss, self).__init__()
         self.loss_fcn = loss_fcn  # must be nn.BCEWithLogitsLoss()
-        self.gamma = gamma
-        self.alpha = alpha
         self.reduction = loss_fcn.reduction
         self.loss_fcn.reduction = 'none'  # required to apply FL to each element
+        self.gamma = gamma
 
     def forward(self, pred, true):
         loss = self.loss_fcn(pred, true)
 
-        # TF implementation https://github.com/tensorflow/addons/blob/v0.7.1/tensorflow_addons/losses/focal_loss.py
         pred_prob = torch.sigmoid(pred)  # prob from logits
         p_t = true * pred_prob + (1 - true) * (1 - pred_prob)
-        alpha_factor = true * self.alpha + (1 - true) * (1 - self.alpha)
         modulating_factor = (1.0 - p_t) ** self.gamma
-        loss *= alpha_factor * modulating_factor
+        loss *= modulating_factor
 
         if self.reduction == 'mean':
             return loss.mean()
@@ -118,6 +115,7 @@ class YOLOLoss(nn.Module):
         super().__init__()
         self.bce = FocalLoss(nn.BCEWithLogitsLoss())
         self.mse = nn.MSELoss()
+        self.entropy = nn.CrossEntropyLoss()
         self.sigmoid = nn.Sigmoid()
 
         # Constants signifying how much to pay for each respective part of the loss
@@ -177,15 +175,14 @@ class YOLOLoss(nn.Module):
         # ===========================================
         preds[..., 1:3] = self.sigmoid(preds[..., 1:3])
         target[..., 3:5] = torch.log(1e-16 + target[..., 3:5]/anchors)
-        box_loss = self.mse(ciou, torch.ones_like(ciou, device=device))
+        box_loss = (1-ciou).mean()
         box_loss += self.mse(preds[..., 1:5][obj_mask], target[..., 1:5][obj_mask])
 
         # CLASS LOSS
         # ===========================================
         pred_labels = preds[..., 5:][obj_mask]
-        target_labels = torch.full_like(preds[..., 5:], 0., device=device)[obj_mask]
-        target_labels[range(len(target_labels)), target[..., 5][obj_mask].long()] = 1.0
-        class_loss = self.bce(pred_labels, target_labels)
+        target_labels = target[..., 5][obj_mask].long()
+        class_loss = self.entropy(pred_labels, target_labels)
 
         # Aggregate Loss
         loss = {

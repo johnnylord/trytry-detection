@@ -15,8 +15,13 @@ def main(config_path):
 
     agent_cls = get_agent_cls(config['agent'])
     agent = agent_cls(config)
-    agent.train()
-    agent.finalize()
+    if config['train']['resume']:
+        agent.resume()
+
+    if config['train']['final']:
+        agent.finalize()
+    else:
+        agent.train()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

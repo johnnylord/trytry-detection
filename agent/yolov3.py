@@ -3,11 +3,10 @@ import os.path as osp
 
 import torch
 import torch.optim as optim
-from torch.optim.lr_scheduler import MultiStepLR
+from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
-from warmup_scheduler import GradualWarmupScheduler
 
 from data.dataset import YOLODataset
 from data.transform import get_yolo_transform
@@ -85,15 +84,14 @@ class YOLOv3Agent:
         self.optimizer = optim.Adam(
                             params=self.model.parameters(),
                             lr=config['optimizer']['lr'],
-                            weight_decay=config['optimizer']['weight_decay']
+                            weight_decay=config['optimizer']['weight_decay'],
                             )
-        scheduler = MultiStepLR(self.optimizer,
-                                milestones=config['scheduler']['milestones'],
-                                gamma=config['scheduler']['gamma'])
-        self.scheduler = GradualWarmupScheduler(self.optimizer,
-                                                multiplier=1.,
-                                                total_epoch=10,
-                                                after_scheduler=scheduler)
+        self.scheduler = OneCycleLR(
+                            self.optimizer,
+                            max_lr=config['optimizer']['lr'],
+                            total_steps=config['train']['n_epochs'],
+                            pct_start=0.05,
+                            )
         # Loss function
         self.loss_fn = YOLOLoss()
 
@@ -107,7 +105,15 @@ class YOLOv3Agent:
         self.current_acc = {}
 
     def resume(self):
-        pass
+        checkpoint_path = osp.join(self.logdir, 'best.pth')
+        checkpoint = torch.load(checkpoint_path)
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
+        self.current_acc = checkpoint['current_acc']
+        self.current_map = checkpoint['current_map']
+        self.current_epoch = checkpoint['current_epoch']
+        print("Restore checkpoint at '{}'".format(self.current_epoch))
 
     def train(self):
         for epoch in range(self.current_epoch+1, self.config['train']['n_epochs']+1):
@@ -137,7 +143,7 @@ class YOLOv3Agent:
                     leave=True,
                     desc=(
                         f"Train Epoch:{current_epoch}/{n_epochs}"
-                        f", LR: {current_lr:.4f}"
+                        f", LR: {current_lr:.5f}"
                         )
                     )
         total_losses = []
@@ -228,7 +234,7 @@ class YOLOv3Agent:
                     leave=True,
                     desc=(
                         f"Valid Epoch:{current_epoch}/{n_epochs}"
-                        f", LR: {current_lr:.4f}"
+                        f", LR: {current_lr:.5f}"
                         )
                     )
         total_losses = []
@@ -411,16 +417,24 @@ class YOLOv3Agent:
                 for nms_box in nms_true_bboxes:
                     all_true_bboxes.append([sample_idx] + nms_box)
                 sample_idx += 1
-        # Compute mAP@0.5
-        mapval = mean_average_precision(
+        # Compute mAP@0.5 & mAP@0.75
+        mapval50 = mean_average_precision(
                     all_pred_bboxes,
                     all_true_bboxes,
-                    iou_threshold=self.config['valid']['map_iou_threshold'],
+                    iou_threshold=0.5,
                     n_classes=self.config['dataset']['n_classes'],
                     box_format="xywh",
                     )
-        print("mAP@0.5:", mapval.item())
-        return mapval.item()
+        mapval75 = mean_average_precision(
+                    all_pred_bboxes,
+                    all_true_bboxes,
+                    iou_threshold=0.75,
+                    n_classes=self.config['dataset']['n_classes'],
+                    box_format="xywh",
+                    )
+        print("mAP@0.50:", mapval50.item())
+        print("mAP@0.75:", mapval75.item())
+        return mapval50.item()
 
     def _save_checkpoint(self):
         checkpoint = {
@@ -429,6 +443,7 @@ class YOLOv3Agent:
             'scheduler': self.scheduler.state_dict(),
             'current_acc': self.current_acc,
             'current_map': self.current_map,
+            'current_epoch': self.current_epoch
         }
         checkpoint_path = osp.join(self.logdir, 'best.pth')
         torch.save(checkpoint, checkpoint_path)
