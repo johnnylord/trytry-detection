@@ -1,0 +1,10 @@
+checkpoints/
+
+__pycache__/
+.ipynb_checkpoints/
+
+run/*
+download/*
+!/**/.gitkeep
+*.pth
+*.txt
