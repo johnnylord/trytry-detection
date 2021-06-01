@@ -10,13 +10,13 @@ train:
 
 search:
   active: false
-  conf_threshold: [ 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8 ]
+  conf_threshold: [ 0.2, 0.3, 0.4, 0.5, 0.6 ]
   nms_iou_threshold: [ 0.30, 0.35, 0.40, 0.45 ]
 
 valid:
   when: 80
-  conf_threshold: 0.8
-  nms_iou_threshold: 0.3
+  conf_threshold: 0.3
+  nms_iou_threshold: 0.45
 
 # PASCAL_VOC Dataset
 dataset:

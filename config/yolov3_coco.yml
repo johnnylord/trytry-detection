@@ -3,20 +3,20 @@ agent: "YOLOv3Agent"
 
 train:
   device: "cuda:0"
-  logdir: "run/yolov3_coco_focal_obj_giou_box"
+  logdir: "run/yolov3_coco_baseline"
   n_epochs: 100
   resume: false
   final: false
 
 valid:
-  conf_threshold: 0.7
-  nms_iou_threshold: 0.3
+  conf_threshold: 0.2
+  nms_iou_threshold: 0.45
 
 # MS COCO Dataset
 dataset:
   size: 416
   scales: [13, 26, 52] # (416//32, 416//16, 416//8)
-  n_classes: 20
+  n_classes: 80
   # Training data set
   train:
     csv: "download/COCO/train.csv"

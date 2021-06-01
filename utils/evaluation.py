@@ -21,14 +21,14 @@ def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5, n_classes=
     NOTE: The format of boxes is (idx, x1, y1, x2, y2, conf, class)
     """
     epsilon = 1e-6
-    mean_recalls = []
-    mean_precisions = []
+    all_recalls = []
+    all_precisions = []
     average_precisions = [] # Save a list of average precision of each class
     # Caculate average precision class-by-class
     for c in range(n_classes):
         # Filter out boxes of class 'c'
-        detections = true_boxes[true_boxes[..., 6] == c]
-        ground_truths = pred_boxes[pred_boxes[..., 6] == c]
+        detections = pred_boxes[pred_boxes[..., 6] == c]
+        ground_truths = true_boxes[true_boxes[..., 6] == c]
 
         # Exception handling
         total_true_bboxes = ground_truths.size(0)
@@ -40,8 +40,8 @@ def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5, n_classes=
         for sample_idx, count in amount_bboxes.items():
             amount_bboxes[sample_idx] = torch.zeros(count)
         # Placeholder to keep information where a pred box is TP/FP
-        TP = torch.zeros(detections.size(0))
-        FP = torch.zeros(detections.size(0))
+        TPs = torch.zeros(detections.size(0))
+        FPs = torch.zeros(detections.size(0))
 
         # Descending detections by confidence score
         order = detections[..., 5].argsort(descending=True)
@@ -73,22 +73,26 @@ def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5, n_classes=
                         best_idx = gt_idx
                 if best_idx != -1:
                     amount_bboxes[sample_idx][best_idx] = 1
-                    TP[offsets[pred_idx]] = 1
+                    TPs[offsets[pred_idx]] = 1
                 else:
-                    FP[offsets[pred_idx]] = 1
+                    FPs[offsets[pred_idx]] = 1
 
-        TP_cumsum = torch.cumsum(TP, dim=0)
-        FP_cumsum = torch.cumsum(FP, dim=0)
+        TP_cumsum = torch.cumsum(TPs, dim=0)
+        FP_cumsum = torch.cumsum(FPs, dim=0)
         recalls = TP_cumsum / (total_true_bboxes + epsilon)
         precisions = TP_cumsum / (TP_cumsum + FP_cumsum + epsilon)
         precisions = torch.cat((torch.tensor([1]), precisions))
         recalls = torch.cat((torch.tensor([0]), recalls))
-        # torch.trapz for numerical integration
-        mean_recalls.append((torch.sum(recalls)/recalls.size(0)).item())
-        mean_precisions.append((torch.sum(precisions)/precisions.size(0)).item())
         average_precisions.append(torch.trapz(precisions, recalls))
 
-    recall = sum(mean_recalls)/len(mean_recalls)
-    precision = sum(mean_precisions)/len(mean_precisions)
+        TP = torch.sum(TPs)
+        FP = torch.sum(FPs)
+        recall = TP / (total_true_bboxes+epsilon)
+        precision = TP / (TP + FP + epsilon)
+        all_recalls.append(recall)
+        all_precisions.append(precision)
+
+    recall = sum(all_recalls)/len(all_recalls)
+    precision = sum(all_precisions)/len(all_precisions)
     mAP = sum(average_precisions) / len(average_precisions)
     return { "mAP": mAP, "recall": recall, "precision": precision }

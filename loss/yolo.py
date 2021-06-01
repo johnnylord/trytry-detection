@@ -89,14 +89,13 @@ class YOLOLoss(nn.Module):
         super().__init__()
         self.mse = nn.MSELoss()
         self.bce = nn.BCEWithLogitsLoss()
-        self.focal = FocalLoss(nn.BCEWithLogitsLoss())
         self.entropy = nn.CrossEntropyLoss()
         self.sigmoid = nn.Sigmoid()
         # Constants signifying how much to pay for each respective part of the loss
         self.lambda_class = 1
-        self.lambda_noobj = 10
-        self.lambda_obj = 1
-        self.lambda_box = 10
+        self.lambda_noobj = 2
+        self.lambda_obj = 4
+        self.lambda_box = 8
 
     def forward(self, preds, target, anchors):
         """Copmute yolo loss
@@ -149,21 +148,22 @@ class YOLOLoss(nn.Module):
         iou = bbox_iou(
                 pred_bboxes[obj_mask],
                 true_bboxes[obj_mask],
-                mode='iou'
+                mode='giou'
                 )
         # Compute Objectness Loss
-        probs = iou.detach()
-        probs[probs < 0] = 0.
-        obj_loss = self.mse(
-                        self.sigmoid(preds[..., 4:5][obj_mask]),
-                        target[..., 4:5][obj_mask]*probs
+        obj_loss = self.bce(
+                        preds[..., 4:5][obj_mask],
+                        target[..., 4:5][obj_mask]*iou.detach().clamp(0)
                         )
         # BOX COORDINATEDS LOSS
         # ===========================================
         preds[..., 0:2] = self.sigmoid(preds[..., 0:2])
         target[..., 2:4] = torch.log(1e-16 + target[..., 2:4]/anchors)
-        box_loss = self.mse(preds[..., 0:4][obj_mask], target[..., 0:4][obj_mask])
-        # box_loss += (1-giou).mean()
+        box_loss = self.bce(preds[..., 0:2][obj_mask],
+                            target[..., 0:2][obj_mask])
+        box_loss += self.mse(preds[..., 2:4][obj_mask],
+                            target[..., 2:4][obj_mask])
+        box_loss += (1-iou).mean()
 
         # CLASS LOSS
         # ===========================================

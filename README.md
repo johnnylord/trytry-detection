@@ -2,10 +2,6 @@
 
 This repo implements yolov3 from scratch with modified codes from [aladdinpersson](https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3).
 
-## TODO
-- [ ] Debug mAP evaluation code correctness
-- [ ] Choose the best hyperparameters with Grid Search
-
 ## How to train the model
 ### Download dataset
 Thanks to [aladdinperson](https://github.com/aladdinpersson), we can directly download organzied dataset from his kaggle account.
