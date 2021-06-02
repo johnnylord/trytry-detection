@@ -5,6 +5,7 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import OneCycleLR
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
@@ -90,6 +91,12 @@ class YOLOv3Agent:
                             lr=config['optimizer']['lr'],
                             weight_decay=config['optimizer']['weight_decay'],
                             )
+        # Scheduler
+        self.scheduler = OneCycleLR(self.optimizer,
+                                    max_lr=config['optimizer']['lr'],
+                                    epochs=config['train']['n_epochs'],
+                                    steps_per_epoch=len(self.train_loader),
+                                    )
         # Loss function
         self.loss_fn = YOLOLoss()
 
@@ -175,6 +182,7 @@ class YOLOv3Agent:
             self.scaler.scale(total_loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
+            self.scheduler.step()
             # Upadte progress bar
             mean_total_loss = sum(total_losses)/len(total_losses)
             mean_obj_loss = sum(obj_losses)/len(obj_losses)

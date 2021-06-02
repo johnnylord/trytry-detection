@@ -93,8 +93,8 @@ class YOLOLoss(nn.Module):
         self.sigmoid = nn.Sigmoid()
         # Constants signifying how much to pay for each respective part of the loss
         self.lambda_class = 1
-        self.lambda_noobj = 2
-        self.lambda_obj = 4
+        self.lambda_noobj = 4
+        self.lambda_obj = 2
         self.lambda_box = 8
 
     def forward(self, preds, target, anchors):
