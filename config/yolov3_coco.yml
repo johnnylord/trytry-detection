@@ -9,7 +9,7 @@ train:
   final: false
 
 valid:
-  conf_threshold: 0.2
+  conf_threshold: 0.3
   nms_iou_threshold: 0.45
 
 # MS COCO Dataset
