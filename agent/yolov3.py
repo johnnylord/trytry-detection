@@ -113,6 +113,7 @@ class YOLOv3Agent:
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
         self.current_map = checkpoint['current_map']
         self.current_epoch = checkpoint['current_epoch']
         print("Restore checkpoint at '{}'".format(self.current_epoch))
@@ -420,6 +421,7 @@ class YOLOv3Agent:
         checkpoint = {
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
+            'scheduler': self.scheduler.state_dict(),
             'current_map': self.current_map,
             'current_epoch': self.current_epoch
         }
