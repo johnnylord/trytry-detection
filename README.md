@@ -2,6 +2,9 @@
 
 This repo implements yolov3 from scratch with modified codes from [aladdinpersson](https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3).
 
+## Pretrained Result
+TODO
+
 ## How to train the model
 ### Download dataset
 Thanks to [aladdinperson](https://github.com/aladdinpersson), we can directly download organzied dataset from his kaggle account.
@@ -40,13 +43,13 @@ $ python main.py --config config/yolov3_coco.yml
 
 ## Development Note
 ### YOLOv3 model prediction
-By feeding an image into `YOLOv3`, it will generate dense prediction of objects for each scale. For each cell in each scale, there are three anchors responsible for detecting objects, and each anchor will predict the `(prob_raw, x_raw, y_raw, w_raw, h_raw, classes_raw)`.
+By feeding an image into `YOLOv3`, it will generate dense prediction of objects for each scale. For each cell in each scale, there are three anchors responsible for detecting objects, and each anchor will predict the `(x_raw, y_raw, w_raw, h_raw, prob_raw, classes_raw)`.
 > the output of YOLOv3 should be further processed as following:  
-> prob => sigmoid(prob\_raw)  
-> x\_cell => sigmoid(x\_raw)  
-> y\_cell => sigmoid(y\_raw)  
+> x\_offset => sigmoid(x\_raw)  
+> y\_offset => sigmoid(y\_raw)  
 > w\_cell => anchor\_w * torch.exp(w\_raw)  
 > h\_cell => anchor\_h * torch.exp(h\_raw)  
+> prob => sigmoid(prob\_raw)  
 > class => torch.argmax(classes\_raw)[0]
 ```python
 from model.yolov3 import YOLOv3
@@ -101,8 +104,8 @@ print("t3 shape:", targets[2].shape) # (3, 52, 52, 6)
 ```
 
 ## Visualization of Result
-The following diagram shows the prediction result of 9 voc image.
-![voc-prediction](https://i.imgur.com/A3VAMBR.png)
+- **The following diagram shows the overfitted prediction result of 9 voc image.**
+![voc-prediction](https://i.imgur.com/yEUEfnP.png)
 
-The following diagram shows the ground truth result of 9 voc image.
-![voc-groundtruth](https://i.imgur.com/mNBUx1g.png)
+- **The following diagram shows the ground truth result of 9 voc image.**
+![voc-groundtruth](https://i.imgur.com/CNk5zdR.png)
