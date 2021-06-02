@@ -14,6 +14,8 @@ from utils.cleanup import nms
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+FIRE_CLASSES = ( 'fire' )
+
 PASCAL_CLASSES = (
     [ "aeroplane", "bicycle", "bird", "boat", "bottle" ] +
     [ "bus", "car", "cat", "chair", "cow" ] +
@@ -106,7 +108,7 @@ class YOLODataset:
                     and not obj_get_assigned
                     and not has_obj_in_scale[scale_idx]
                 ):
-                    targets[scale_idx][scale_anchor_idx, i, j, 4] = 1.
+                    targets[scale_idx][scale_anchor_idx, i, j, 4] = 1
                     x_offset, y_offset = (x*scale-j), (y*scale-i)
                     w_cell, h_cell = (w*scale), (h*scale)
                     coord = torch.tensor([x_offset, y_offset, w_cell, h_cell])
@@ -121,7 +123,7 @@ class YOLODataset:
                     and iou_anchors[idx, anchor_idx] > self.accept_iou_thresh
                 ):
                     # For ignoring prediction (not count for loss)
-                    targets[scale_idx][scale_anchor_idx, i, j, 4] = 1.
+                    targets[scale_idx][scale_anchor_idx, i, j, 4] = 1
                     x_offset, y_offset = (x*scale-j), (y*scale-i)
                     w_cell, h_cell = (w*scale), (h*scale)
                     coord = torch.tensor([x_offset, y_offset, w_cell, h_cell])

@@ -8,6 +8,11 @@ train:
   resume: false
   final: false
 
+search:
+  active: false
+  conf_threshold: [ 0.2, 0.3, 0.4, 0.5 ]
+  nms_iou_threshold: [ 0.3, 0.35, 0.4, 0.45 ]
+
 valid:
   conf_threshold: 0.3
   nms_iou_threshold: 0.45

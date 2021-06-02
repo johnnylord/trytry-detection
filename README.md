@@ -3,7 +3,10 @@
 This repo implements yolov3 from scratch with modified codes from [aladdinpersson](https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3).
 
 ## Pretrained Result
-TODO
+| Dataset        | mAP@0.5 | Model Checkpoint                                                              |
+|----------------|---------|-------------------------------------------------------------------------------|
+| PASCAL VOC2012 | 0.74    | [Download](https://www.dropbox.com/s/7gtcjbxnk012k3h/yolov3_voc2012.pth?dl=0) |
+| MS COCO2014    | PENDING | PENDING                                                                       |
 
 ## How to train the model
 ### Download dataset
