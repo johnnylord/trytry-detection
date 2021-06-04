@@ -1,6 +1,6 @@
 # trytry-detection
 
-This repo implements yolov3 from scratch with modified codes from [aladdinpersson](https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3).
+This repo implements yolov3 from scratch with pytorch.
 
 ## Pretrained Result
 | Model           | Dataset        | mAP@0.5 | Model Checkpoint                                                               |
