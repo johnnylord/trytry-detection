@@ -72,7 +72,7 @@ print("scale(52):", outs[2].shape) # (1, 3, 52, 52, 25)
 ```
 
 ### YOLOv3 dataset groundtruth
-The groundtruth label for each image is the position information of each object in the image. Specifically, there are three kinds of target labels representing ground truth object position in each scale. the label for each grid cell is `(prob, x_offset, y_offset, w_cell, h_cell, class)`.
+The groundtruth label for each image is the position information of each object in the image. Specifically, there are three kinds of target labels representing ground truth object position in each scale. the label for each grid cell is `(x_offset, y_offset, w_cell, h_cell, prob, class)`.
 ```python
 from data.dataset import YOLODataset
 from data.transform import get_yolo_transform
