@@ -3,10 +3,10 @@
 This repo implements yolov3 from scratch with modified codes from [aladdinpersson](https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3).
 
 ## Pretrained Result
-| Dataset        | mAP@0.5 | Model Checkpoint                                                              |
-|----------------|---------|-------------------------------------------------------------------------------|
-| PASCAL VOC2012 | 0.74    | [Download](https://www.dropbox.com/s/7gtcjbxnk012k3h/yolov3_voc2012.pth?dl=0) |
-| MS COCO2014    | PENDING | PENDING                                                                       |
+| Model           | Dataset        | mAP@0.5 | Model Checkpoint                                                               |
+|-----------------|----------------|---------|--------------------------------------------------------------------------------|
+| YOLOv3\_416x416 | PASCAL VOC2012 | 0.74    | [Download](https://www.dropbox.com/s/7gtcjbxnk012k3h/yolov3_voc2012.pth?dl=0)  |
+| YOLOv3\_416x416 | MS COCO2014    | 0.47    | [Download](https://www.dropbox.com/s/rdaztvk7ap46f1i/yolov3_coco2014.pth?dl=0) |
 
 ## How to train the model
 ### Download dataset
@@ -106,9 +106,16 @@ print("t2 shape:", targets[1].shape) # (3, 26, 26, 6)
 print("t3 shape:", targets[2].shape) # (3, 52, 52, 6)
 ```
 
-## Visualization of Result
-- **The following diagram shows the overfitted prediction result of 9 voc image.**
+## VOC2012 Visualization of Result
+- **The following diagram shows the prediction result of 9 voc image.**
 ![voc-prediction](https://i.imgur.com/yEUEfnP.png)
 
 - **The following diagram shows the ground truth result of 9 voc image.**
 ![voc-groundtruth](https://i.imgur.com/CNk5zdR.png)
+
+## COCO2104 Visualization of Result
+- **The following diagram shows the prediction result of 9 coco image.**
+![coco-prediction](https://i.imgur.com/SHkvzxF.png)
+
+- **The following diagram shows the ground truth result of 9 coco image.**
+![coco-groundtruth](https://i.imgur.com/9Cpzq4x.png)

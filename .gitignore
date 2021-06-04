@@ -1,4 +1,5 @@
 checkpoints/
+annotations/
 
 __pycache__/
 .ipynb_checkpoints/
