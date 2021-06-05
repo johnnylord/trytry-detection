@@ -8,7 +8,7 @@ from torch.hub import load_state_dict_from_url
 import torch.nn as nn
 
 
-__all__ = [ "YOLOv3" ]
+__all__ = [ "YOLOv3", "Maskv3" ]
 
 
 class CNNBlock(nn.Module):
@@ -105,8 +105,13 @@ class YOLOv3(nn.Module):
             self.backbone.load_state_dict(new_state_dict)
 
     def forward(self, x):
+        outputs, _ = self._foward_logics(x)
+        return outputs
+
+    def _foward_logics(self, x):
         outputs = [] # for each scale
-        route_connections = []
+        latent_features = [] # Feature maps for prediction heads of each scale
+        route_connections = [] # Skip connection feature maps in backbone layer
 
         # Forward backbone feature extractor
         for layer in self.backbone:
@@ -117,6 +122,7 @@ class YOLOv3(nn.Module):
         # Forward detection header
         for layer in self.detector:
             if isinstance(layer, ScalePrediction):
+                latent_features.append(x)
                 outputs.append(layer(x))
                 continue
             x = layer(x)
@@ -124,7 +130,7 @@ class YOLOv3(nn.Module):
                 x = torch.cat([x, route_connections[-1]], dim=1)
                 route_connections.pop()
 
-        return outputs
+        return outputs, latent_features
 
     def _parse_yaml(self, path):
         layers = nn.ModuleList()
@@ -172,13 +178,77 @@ class YOLOv3(nn.Module):
         self.cur_channels = in_channels
         return layers
 
+
+class Maskv3(YOLOv3):
+
+    def __init__(self, num_masks, num_features, **kwargs):
+        super().__init__(**kwargs)
+        # Upscaling layers
+        # ====================================================================
+        self.upscales = nn.ModuleList()
+        # (512, 13, 13) => (num_features, 52, 52)
+        self.upscales.append(nn.Sequential(
+            nn.ConvTranspose2d(512, num_features, **self._upscale_params(4)),
+            nn.BatchNorm2d(num_features),
+            nn.LeakyReLU(0.1, inplace=True),
+            ))
+        # (256, 26, 26) => (num_features, 52, 52)
+        self.upscales.append(nn.Sequential(
+            nn.ConvTranspose2d(256, num_features, **self._upscale_params(2)),
+            nn.BatchNorm2d(num_features),
+            nn.LeakyReLU(0.1, inplace=True),
+            ))
+        # (128, 52, 52) => (num_features, 52, 52)
+        self.upscales.append(nn.Sequential(
+            nn.ConvTranspose2d(128, num_features, **self._upscale_params(1)),
+            nn.BatchNorm2d(num_features),
+            nn.LeakyReLU(0.1, inplace=True),
+            ))
+
+        # Mask Generation Layer
+        # ====================================================================
+        self.protonet = nn.Sequential(
+            nn.Conv2d(num_features*3, num_masks, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            )
+
+        self.upsample = nn.Upsample(scale_factor=8)
+
+    def forward(self, x):
+        outputs, latent_features = self._foward_logics(x)
+        x = [ layer(f) for layer, f in zip(self.upscales, latent_features) ]
+        x = torch.cat(x, dim=1)
+        masks = self.protonet(x)
+        masks = self.upsample(masks)
+        return outputs, masks
+
+    def _upscale_params(self, factor):
+        if factor == 1:
+            return { "stride": factor, "kernel_size": 1, "padding": 0 }
+        else:
+            return { "stride": factor, "kernel_size": factor*2, "padding": factor//2 }
+
 if __name__ == "__main__":
-    num_classes = 20
+    num_classes = 80
     IMAGE_SIZE = 416
     model = YOLOv3(in_channels=3, num_classes=num_classes)
-    x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE))
+    x = torch.randn((1, 3, IMAGE_SIZE, IMAGE_SIZE))
     outs = model(x)
+    print("Yolov3:")
     print("Output Shape: (N, num_anchors, img_height, img_width, 5+num_class)")
     print("Scale #1:", outs[0].shape)
     print("Scale #2:", outs[1].shape)
     print("Scale #3:", outs[2].shape)
+    print("")
+
+    print("Maskv3:")
+    model = Maskv3(
+                in_channels=3, num_classes=num_classes, # Object Detection Branch
+                num_masks=5, num_features=128, # Mask Generation Branch
+                )
+    outs, masks = model(x)
+    print("Output Shape: (N, num_anchors, img_height, img_width, 5+num_class)")
+    print("Scale #1:", outs[0].shape)
+    print("Scale #2:", outs[1].shape)
+    print("Scale #3:", outs[2].shape)
+    print("Prototypes:", masks.shape)
