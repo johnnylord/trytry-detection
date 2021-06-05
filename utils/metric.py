@@ -1,5 +1,52 @@
 import torch
+import numpy as np
 
+
+def iou_bbox_mask(bboxes, masks):
+    """Copmute IoU between bboxes and masks
+
+    Arguments:
+        bboxes  (tensor): tensor of shape (N, 4)
+        masks   (tensor): tensor of shape (M, H, W)
+
+    Returns:
+        tensor of shape (N, M) representing pair-by-pair iou values between
+        bbox and mask
+
+    NOTES:
+        box is in normalized format (x, y, w, h).
+        mask is a boolean map in pixel coordinate (H, W).
+    """
+    epsilon = 1e-16
+    img_width, img_height = masks.size(2), masks.size(1)
+
+    # Convert bboxes to (xmin, ymin, xmax, ymax) format
+    bboxes[..., 0] *= img_width     # x
+    bboxes[..., 1] *= img_height    # y
+    bboxes[..., 2] *= img_width     # w
+    bboxes[..., 3] *= img_height    # h
+    bboxes[..., 0] -= (bboxes[..., 2]/2)
+    bboxes[..., 1] -= (bboxes[..., 3]/2)
+    bboxes[..., 2] = bboxes[..., 0]+(bboxes[..., 2])
+    bboxes[..., 3] = bboxes[..., 1]+(bboxes[..., 3])
+
+    # Convert masks to bboxes (xmin, ymin, xmax, ymax) format
+    mboxes = []
+    for mask in masks:
+        booleans = (mask > 0.9).long()
+        indices = torch.nonzero(booleans)
+        if indices.size(0) == 0:
+            mboxes.append((0, 0, 0, 0))
+            continue
+        ymin = indices[..., 0].min().item()
+        ymax = indices[..., 0].max().item()
+        xmin = indices[..., 1].min().item()
+        xmax = indices[..., 1].max().item()
+        mboxes.append((xmin, ymin, xmax, ymax))
+    mboxes = torch.tensor(mboxes, dtype=torch.float64)
+
+    # Compute iou between bboxes & masks
+    return iou(bboxes, mboxes)
 
 def iou_wh(box1, box2):
     """Copmute IoU between two bbox sets with width & height only
@@ -68,4 +115,4 @@ def iou(box1, box2):
     area2 = area2.unsqueeze(0).expand(N,M) # (N, M)
     # Compute IoU
     iou = inter / (area1+area2-inter+epsilon)
-    return iou
+    return iou.clamp(0)

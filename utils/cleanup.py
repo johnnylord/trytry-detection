@@ -3,7 +3,7 @@ import torch
 from .convert import xywh2tlbr
 
 
-def nms(boxes, scores, iou_threshold):
+def nms(boxes, scores, iou_threshold, extras=None):
     """Non-maximum suppression on bbox set
 
     Arguments:
@@ -19,7 +19,7 @@ def nms(boxes, scores, iou_threshold):
         score is (objectness*class probability) => P(Class|Obj)
     """
     if boxes.size(0) <= 1:
-        return boxes, scores
+        return boxes, scores, extras
     # Coordinate of shape (N,)
     x1 = boxes[..., 0]
     y1 = boxes[..., 1]
@@ -49,8 +49,7 @@ def nms(boxes, scores, iou_threshold):
             break
         order = order[idx+1]
 
-    return boxes[keep], scores[keep]
-
+    return boxes[keep], scores[keep], (extras[keep] if extras is not None else None)
 
 def nms_by_class(bboxes, target, iou_threshold):
     if bboxes.size(0) == 0:
@@ -59,18 +58,19 @@ def nms_by_class(bboxes, target, iou_threshold):
     boxes = xywh2tlbr(bboxes[..., :4])
     scores = bboxes[..., 4:5]
     classes = bboxes[..., 5]
+    extras = bboxes[..., 6:] if bboxes.size(1) > 6 else None
     # Filter out target class
     mask = (classes == target)
     if torch.sum(mask) == 0:
         return []
     # Perform nms on objects
-    boxes, scores = nms(boxes=boxes[mask],
-                        scores=scores[mask],
-                        iou_threshold=iou_threshold)
+    boxes, scores, extras = nms(boxes=boxes[mask],
+                                scores=scores[mask],
+                                iou_threshold=iou_threshold,
+                                extras=extras[mask] if extras is not None else None)
     # Merge fields back
-    bboxes = torch.cat([
-                boxes,
-                scores,
-                torch.tensor([[target]]).repeat(boxes.size(0), 1)
-                ], dim=1)
+    classes = torch.tensor([[target]]).repeat(boxes.size(0), 1)
+    columns = [ boxes, scores, classes ] + ([extras] if extras is not None else [])
+    bboxes = torch.cat(columns, dim=1)
+
     return bboxes.tolist()

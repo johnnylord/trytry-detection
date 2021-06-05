@@ -2,6 +2,30 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
+def get_color_palette(class_names):
+    cmaps = [
+        plt.get_cmap('tab20'),
+        plt.get_cmap('tab20b'),
+        plt.get_cmap('tab20c'),
+        plt.get_cmap('tab20'),
+        ]
+    colors = []
+    for i in range(len(class_names)):
+        ptr = i%20
+        cmap = cmaps[i//20]
+        steps = np.linspace(0, 1, 20)
+        color = (np.array(cmap(steps[ptr])[:3])*255).astype(np.uint8)
+        colors.append(tuple(color.tolist()))
+
+    return colors
+
+def draw_mask(frame, bbox, mask):
+    canvas = np.zeros_like(frame).astype(np.uint8)
+    xmin, ymin = int(bbox[0]), int(bbox[1])
+    xmax, ymax = int(bbox[2]), int(bbox[3])
+    canvas[ymin:ymax, xmin:xmax] = mask
+    frame[:, :, :] = cv2.addWeighted(frame, 1, canvas, 0.5, 0)
+
 def draw_boxes(frame, boxes, class_names):
     """Draw bounding boxes on image frame
 
@@ -16,9 +40,7 @@ def draw_boxes(frame, boxes, class_names):
     NOTES: box format is (x1, y1, x2, y2, conf, class)
     """
     # Crreate color palette
-    cmap = plt.get_cmap("tab20b")
-    colors = [  tuple((np.array(cmap(i)[:3])*255).astype(np.uint8).tolist())
-                for i in np.linspace(0, 1, len(class_names)) ]
+    colors = get_color_palette(class_names)
     # Draw bounding boxes
     for box in boxes:
         x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
@@ -29,7 +51,6 @@ def draw_boxes(frame, boxes, class_names):
                 bgcolor=color, fgcolor=(255, 255, 255),
                 fontScale=1, thickness=1, margin=1)
     return frame
-
 
 def draw_text(frame, text, position,
             fgcolor=(85, 125, 255),
