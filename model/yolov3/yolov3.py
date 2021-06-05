@@ -73,6 +73,28 @@ class ScalePrediction(nn.Module):
             .permute(0, 1, 3, 4, 2)
             )
 
+
+class MaskScalePrediction(nn.Module):
+    """Detection head in specific scale with mask coefficients"""
+    def __init__(self, in_channels, num_classes, num_masks):
+        super().__init__()
+        self.pred = nn.Sequential(
+            CNNBlock(in_channels, 2*in_channels, kernel_size=3, padding=1),
+            CNNBlock(2*in_channels, (5+num_classes+num_masks)*3, bn_act=False, kernel_size=1)
+            )
+        self.num_classes = num_classes
+        self.num_masks = num_masks
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        height, width = x.size(2), x.size(3)
+        return (
+            self.pred(x)
+            .reshape(batch_size, 3, 5+self.num_classes+self.num_masks, height, width)
+            .permute(0, 1, 3, 4, 2)
+            )
+
+
 class YOLOv3(nn.Module):
     BACKBONE_WEIGHTS = 'https://www.dropbox.com/s/cd6aufj1wwexsbp/darknet448.pth?dl=1'
     BACKBONE_PATH = osp.join(osp.dirname(osp.abspath(__file__)), 'backbone.yml')
@@ -108,6 +130,9 @@ class YOLOv3(nn.Module):
         outputs, _ = self._foward_logics(x)
         return outputs
 
+    def get_prediction_head(self, in_channels):
+        return ScalePrediction(in_channels, num_classes=self.num_classes)
+
     def _foward_logics(self, x):
         outputs = [] # for each scale
         latent_features = [] # Feature maps for prediction heads of each scale
@@ -121,7 +146,10 @@ class YOLOv3(nn.Module):
 
         # Forward detection header
         for layer in self.detector:
-            if isinstance(layer, ScalePrediction):
+            if (
+                isinstance(layer, ScalePrediction)
+                or isinstance(layer, MaskScalePrediction)
+            ):
                 latent_features.append(x)
                 outputs.append(layer(x))
                 continue
@@ -163,7 +191,7 @@ class YOLOv3(nn.Module):
                 layers += [
                     ResidualBlock(in_channels, use_residual=False, num_repeats=1),
                     CNNBlock(in_channels, in_channels//2, kernel_size=1),
-                    ScalePrediction(in_channels//2, num_classes=self.num_classes)
+                    self.get_prediction_head(in_channels//2)
                     ]
                 in_channels = in_channels // 2
             # UpSampling
@@ -182,6 +210,8 @@ class YOLOv3(nn.Module):
 class Maskv3(YOLOv3):
 
     def __init__(self, num_masks, num_features, **kwargs):
+        self.num_masks = num_masks
+        self.num_features = num_features
         super().__init__(**kwargs)
         # Upscaling layers
         # ====================================================================
@@ -222,11 +252,17 @@ class Maskv3(YOLOv3):
         masks = self.upsample(masks)
         return outputs, masks
 
+    def get_prediction_head(self, in_channels):
+        return MaskScalePrediction(in_channels,
+                                num_classes=self.num_classes,
+                                num_masks=self.num_masks)
+
     def _upscale_params(self, factor):
         if factor == 1:
             return { "stride": factor, "kernel_size": 1, "padding": 0 }
         else:
             return { "stride": factor, "kernel_size": factor*2, "padding": factor//2 }
+
 
 if __name__ == "__main__":
     num_classes = 80
@@ -241,13 +277,13 @@ if __name__ == "__main__":
     print("Scale #3:", outs[2].shape)
     print("")
 
-    print("Maskv3:")
     model = Maskv3(
                 in_channels=3, num_classes=num_classes, # Object Detection Branch
                 num_masks=5, num_features=128, # Mask Generation Branch
                 )
     outs, masks = model(x)
-    print("Output Shape: (N, num_anchors, img_height, img_width, 5+num_class)")
+    print("Maskv3:")
+    print("Output Shape: (N, num_anchors, img_height, img_width, 5+num_class+num_masks)")
     print("Scale #1:", outs[0].shape)
     print("Scale #2:", outs[1].shape)
     print("Scale #3:", outs[2].shape)
