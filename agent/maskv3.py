@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from data.dataset import YOLOMaskDataset
 from data.transform import get_yolo_transform
+from data.collate import maskv3_collate_fn
 from model.yolov3 import Maskv3
 from loss.yolo import YOLOMaskLoss
 from utils.cleanup import nms_by_class
@@ -61,11 +62,13 @@ class Maskv3Agent:
                                 dataset=train_dataset,
                                 batch_size=config['dataloader']['batch_size'],
                                 num_workers=config['dataloader']['num_workers'],
+                                collate_fn=maskv3_collate_fn,
                                 pin_memory=True, shuffle=True, drop_last=False)
         self.valid_loader = DataLoader(
                                 dataset=valid_dataset,
                                 batch_size=config['dataloader']['batch_size'],
                                 num_workers=config['dataloader']['num_workers'],
+                                collate_fn=maskv3_collate_fn,
                                 pin_memory=True, shuffle=False, drop_last=False)
         # Model
         model = Maskv3(

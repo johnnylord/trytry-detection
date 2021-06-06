@@ -162,7 +162,7 @@ class YOLOMaskDataset:
         masks = []
         for mfile in mask_files:
             mask = np.uint8(Image.open(mfile))/255
-            masks.append(torch.tensor(mask))
+            masks.append(mask)
 
         # Apply albumentation transformation
         while True:
@@ -200,7 +200,10 @@ class YOLOMaskDataset:
         # Assign groundtruth object to the cell with the highest IoU value
         anchor_orders = iou_anchors.argsort(descending=True, dim=-1)
         for idx, anchor_order in enumerate(anchor_orders):
-            mask_id = boxId2maskId[idx]
+            try:
+                mask_id = boxId2maskId[idx]
+            except Exception as e:
+                continue
             x, y, w, h, cls = bboxes[idx]
             # Check Flag
             has_obj_in_scale = [False]*len(self.scales)
@@ -230,4 +233,4 @@ class YOLOMaskDataset:
                     # For ignoring prediction (not count for loss)
                     targets[scale_idx][scale_anchor_idx, i, j, 4] = -1
 
-        return img, masks, targets
+        return img, torch.tensor(masks), targets

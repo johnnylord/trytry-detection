@@ -268,9 +268,16 @@ if __name__ == "__main__":
     num_classes = 80
     IMAGE_SIZE = 416
     model = YOLOv3(in_channels=3, num_classes=num_classes)
+    model = model.to("cuda")
     x = torch.randn((1, 3, IMAGE_SIZE, IMAGE_SIZE))
-    outs = model(x)
-    print("Yolov3:")
+    x = x.to("cuda")
+
+    import time
+    start = time.time()
+    for i in range(100):
+        outs = model(x)
+
+    print(f"Yolov3 (Elapsed Time: {(time.time()-start)/100})")
     print("Output Shape: (N, num_anchors, img_height, img_width, 5+num_class)")
     print("Scale #1:", outs[0].shape)
     print("Scale #2:", outs[1].shape)
@@ -281,8 +288,11 @@ if __name__ == "__main__":
                 in_channels=3, num_classes=num_classes, # Object Detection Branch
                 num_masks=5, num_features=128, # Mask Generation Branch
                 )
-    outs, masks = model(x)
-    print("Maskv3:")
+    model = model.to("cuda")
+    start = time.time()
+    for i in range(100):
+        outs, masks = model(x)
+    print(f"Maskv3(Elapsed Time: {(time.time()-start)/100})")
     print("Output Shape: (N, num_anchors, img_height, img_width, 5+num_class+num_masks)")
     print("Scale #1:", outs[0].shape)
     print("Scale #2:", outs[1].shape)
