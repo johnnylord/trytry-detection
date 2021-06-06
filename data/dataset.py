@@ -162,7 +162,7 @@ class YOLOMaskDataset:
         masks = []
         for mfile in mask_files:
             mask = np.uint8(Image.open(mfile))/255
-            masks.append(mask)
+            masks.append(torch.tensor(mask))
 
         # Apply albumentation transformation
         while True:

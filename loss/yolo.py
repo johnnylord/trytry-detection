@@ -2,6 +2,7 @@ import math
 import random
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 def bbox_iou(box1, box2, mode='iou'):
@@ -181,6 +182,161 @@ class YOLOLoss(nn.Module):
                 + self.lambda_obj * obj_loss
                 + self.lambda_noobj * noobj_loss
                 + self.lambda_class * class_loss
+            )
+        }
+        return loss
+
+
+class YOLOMaskLoss(nn.Module):
+
+    def __init__(self, num_classes, num_masks):
+        super().__init__()
+        self.num_classes = num_classes
+        self.num_masks = num_masks
+        # Loss functions
+        self.mse = nn.MSELoss()
+        self.bce = nn.BCEWithLogitsLoss()
+        self.entropy = nn.CrossEntropyLoss()
+        # Process layers
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+        # Constants signifying how much to pay for each respective part of the loss
+        self.lambda_class = 1
+        self.lambda_noobj = 4
+        self.lambda_obj = 2
+        self.lambda_box = 8
+        self.lambda_segment = 10
+
+    def forward(self,
+                preds, target, anchors, # Detection branch
+                prototypes, masks       # Prototype branch
+                ):
+        """Copmute yolo loss with instance segmentation loss
+
+        Arguements:
+            preds (tensor): tensor of shape (N, 3, S, S, 5+nC+nM)
+            target (tensor): tensor of shape (N, 3, S, S, 7)
+            anchors (tensor): tensor of shape (3, 2)
+            prototypes (tensor): tensor of shape (N, nM, H, W)
+            masks (list): list of tensor of shape (nM_g, H, W), 'nM_g' differs
+                in different batches.
+
+        Prediction format:
+            (x_raw, y_raw, w_raw, h_raw, conf, [classes...coefficients])
+
+        Target format:
+            (x_offset, y_offset, w_cell, h_cell, conf, class, maskId)
+        """
+        device = preds.device
+        # Normalize factor
+        scale = preds.size(2)
+        # target with -1 is ignored
+        obj_mask = target[..., 4] == 1      # (N, 3, S, S)
+        noobj_mask = target[..., 4] == 0    # (N, 3, S, S)
+        # NO OBJECT LOSS
+        # ==========================================
+        noobj_loss = self.bce(
+                        preds[..., 4:5][noobj_mask],
+                        target[..., 4:5][noobj_mask]
+                        )
+        # Exception Handling
+        if torch.sum(obj_mask) == 0:
+            loss = {
+                'box_loss': 0,
+                'obj_loss': 0,
+                'class_loss': 0,
+                'segment_loss': 0,
+                'noobj_loss': self.lambda_noobj * noobj_loss,
+                'total_loss': self.lambda_noobj * noobj_loss,
+            }
+            return loss
+        # OBJECT LOSS
+        # ===========================================
+        anchors = anchors.reshape(1, 3, 1, 1, 2)            # (1, 3, 1, 1, 2)
+        # Prediction bboxes
+        xy_offset = self.sigmoid(preds[..., 0:2])           # (N, 3, S, S, 2)
+        wh_cell = torch.exp(preds[..., 2:4])*anchors        # (N, 3, S, S, 2)
+        pred_bboxes = torch.cat([xy_offset, wh_cell], dim=-1) # (N, 3, S, S, 4)
+        # Groundtruth bboxes
+        xy_offset = target[..., 0:2]
+        wh_cell = target[..., 2:4]
+        true_bboxes = torch.cat([xy_offset, wh_cell], dim=-1) # (N, 3, S, S, 4)
+        # Compute IoU Metric
+        iou = bbox_iou(
+                pred_bboxes[obj_mask],
+                true_bboxes[obj_mask],
+                mode='giou'
+                )
+        # Compute Objectness Loss
+        obj_loss = self.bce(
+                        preds[..., 4:5][obj_mask],
+                        target[..., 4:5][obj_mask]*iou.detach().clamp(0)
+                        )
+        # BOX COORDINATEDS LOSS
+        # ===========================================
+        preds[..., 0:2] = self.sigmoid(preds[..., 0:2])
+        target[..., 2:4] = torch.log(1e-16 + target[..., 2:4]/anchors)
+        box_loss = self.bce(preds[..., 0:2][obj_mask],
+                            target[..., 0:2][obj_mask])
+        box_loss += self.mse(preds[..., 2:4][obj_mask],
+                            target[..., 2:4][obj_mask])
+        box_loss += (1-iou).mean()
+
+        # CLASS LOSS
+        # ===========================================
+        pred_labels = preds[..., 5:5+self.num_classes][obj_mask]
+        target_labels = target[..., 5][obj_mask].long()
+        class_loss = self.entropy(pred_labels, target_labels)
+
+        # SEGMENT LOSS
+        # ===========================================
+        coeff_start_idx = 5+self.num_classes
+        coeff_end_idx = 5+self.num_classes+self.num_masks
+        coeffs = preds[..., coeff_start_idx:coeff_end_idx] # (N, 3, S, S, nM)
+        target_maskIds = target[..., 6:7] # (N, 3, S, S, 1)
+        # Compute loss batch-by-batch
+        segment_loss = torch.tensor(0., device=device, requires_grad=True)
+        for (
+            coeffs_,
+            target_maskIds_,
+            obj_mask_,
+            prototypes_,
+            masks_
+            ) in zip(coeffs, target_maskIds, obj_mask, prototypes, masks):
+            """Input info
+
+            coeffs_ (tensor): tensor of shape (3, S, S, nM)
+            target_maskIds_ (tensor): tensor of shape (3, S, S, 1)
+            obj_mask_ (tensor): tensor of shape (3, S, S)
+            prototypes_ (tensor): tensor of shape (nM, H, W)
+            masks_ (tensor): tensor of shape (nM_g, H, W)
+            """
+            # Prediction
+            # =============================================
+            masked_coeffs = self.tanh(coeffs_[obj_mask_])   # (nObj, nM)
+            instances = torch.einsum('om,mhw->ohw', [masked_coeffs, prototypes_]) # (nObj, H, W)
+            instances = self.sigmoid(instances) # (nObj, H, W)
+
+            # Groundtruth
+            # =============================================
+            masked_maskIds = target_maskIds_[obj_mask_].long() # (nObj, 1)
+            for instance, maskId in zip(instances, masked_maskIds):
+                target_mask = masks_[maskId] # (H, W)
+                segment_loss += F.binary_cross_entropy(instance, target_mask, reduction='sum')
+
+        # Aggregate Loss
+        loss = {
+            'box_loss': self.lambda_box * box_loss,
+            'obj_loss': self.lambda_obj * obj_loss,
+            'noobj_loss': self.lambda_noobj * noobj_loss,
+            'class_loss': self.lambda_class * class_loss,
+            'segment_loss': self.lambda_segment * segment_loss,
+            'total_loss': (
+                self.lambda_box * box_loss
+                + self.lambda_obj * obj_loss
+                + self.lambda_noobj * noobj_loss
+                + self.lambda_class * class_loss
+                + self.lambda_segment * segment_loss
             )
         }
         return loss
