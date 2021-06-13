@@ -25,16 +25,14 @@ dataset:
   n_classes: 80
   # Training data set
   train:
-    csv: "download/COCO/test.csv"
+    csv: "download/COCO/train.csv"
     img_root: "download/COCO/images"
     mask_root: "download/COCO/masks"
-    label_root: "download/COCO/labels"
   # Validation data set
   valid:
     csv: "download/COCO/test.csv"
     img_root: "download/COCO/images"
     mask_root: "download/COCO/masks"
-    label_root: "download/COCO/labels"
   anchors: [
     [[0.28, 0.22], [0.38, 0.48], [0.9, 0.78]], # Scale #1 anchor box
     [[0.07, 0.15], [0.15, 0.11], [0.14, 0.29]],# Scale #2 anchor box
@@ -43,7 +41,7 @@ dataset:
 
 dataloader:
   batch_size: 64
-  num_workers: 4
+  num_workers: 8
 
 # Maskv3 Model
 model:

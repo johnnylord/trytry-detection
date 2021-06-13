@@ -229,6 +229,7 @@ class YOLOMaskLoss(nn.Module):
         Target format:
             (x_offset, y_offset, w_cell, h_cell, conf, class, maskId)
         """
+        epsilon = 1e-9
         device = preds.device
         # Normalize factor
         scale = preds.size(2)
@@ -256,6 +257,7 @@ class YOLOMaskLoss(nn.Module):
 
         # SEGMENT LOSS
         # ===========================================
+        segment_loss = torch.tensor(0., device=device, requires_grad=True)
         if False:
             scale = target.size(2)
             coeff_start_idx = 5+self.num_classes
@@ -305,13 +307,11 @@ class YOLOMaskLoss(nn.Module):
                                         int(bbox[1]):int(bbox[1])+int(bbox[3]),
                                         int(bbox[0]):int(bbox[0])+int(bbox[2])
                                         ]
-                    segment_loss = (
-                            segment_loss
-                            + F.binary_cross_entropy_with_logits(
+                    loss = F.binary_cross_entropy_with_logits(
                                 instance_region, target_region,
                                 )
-                            )
-            segment_loss = segment_loss / torch.sum(obj_mask)
+                    segment_loss = segment_loss + loss
+            segment_loss = segment_loss/torch.sum(obj_mask)
 
         # OBJECT LOSS
         # ===========================================
@@ -357,13 +357,13 @@ class YOLOMaskLoss(nn.Module):
             'obj_loss': self.lambda_obj * obj_loss,
             'noobj_loss': self.lambda_noobj * noobj_loss,
             'class_loss': self.lambda_class * class_loss,
-            'segment_loss': torch.tensor(0), # self.lambda_segment * segment_loss,
+            'segment_loss': self.lambda_segment * segment_loss,
             'total_loss': (
                 self.lambda_box * box_loss
                 + self.lambda_obj * obj_loss
                 + self.lambda_noobj * noobj_loss
                 + self.lambda_class * class_loss
-                # + 0 # self.lambda_segment * segment_loss
+                # + self.lambda_segment * segment_loss
             )
         }
         return loss
