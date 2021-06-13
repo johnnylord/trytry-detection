@@ -192,7 +192,7 @@ class YOLOMaskDataset:
             masks = np.array(masks)[indices]
 
         if len(indices) == 0:
-            return img, torch.tensor(masks), targets
+            return img, torch.tensor(masks, dtype=torch.float32), targets
 
         # Compute iou between groundtruth bboxes & anchor boxes
         iou_anchors = iou_wh( # (N, 9)
@@ -231,4 +231,4 @@ class YOLOMaskDataset:
                     # For ignoring prediction (not count for loss)
                     targets[scale_idx][scale_anchor_idx, i, j, 4] = -1
 
-        return img, torch.tensor(masks), targets
+        return img, torch.tensor(masks, dtype=torch.float32), targets

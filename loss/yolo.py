@@ -255,63 +255,65 @@ class YOLOMaskLoss(nn.Module):
             }
             return loss
 
-        # SEGMENT LOSS
+        # SEGMENT LOSS (Batch-by-Batch)
         # ===========================================
-        segment_loss = torch.tensor(0., device=device, requires_grad=True)
-        if False:
-            scale = target.size(2)
-            coeff_start_idx = 5+self.num_classes
-            coeff_end_idx = 5+self.num_classes+self.num_masks
-            coeffs = preds[..., coeff_start_idx:coeff_end_idx] # (N, 3, S, S, nM)
-            target_bboxes = cells_to_boxes(target, scale) # (N, 3, S, S, 7)
+        scale = target.size(2)
+        coeff_start_idx = 5+self.num_classes
+        coeff_end_idx = 5+self.num_classes+self.num_masks
+        coeffs = preds[..., coeff_start_idx:coeff_end_idx] # (N, 3, S, S, nM)
+        target_bboxes = cells_to_boxes(target, scale) # (N, 3, S, S, 7) (xywh)
 
-            # Compute loss batch-by-batch
-            segment_loss = torch.tensor(0., device=device, requires_grad=True)
-            for (
-                coeffs_,
-                obj_mask_,
-                target_bboxes_,
-                prototypes_,
-                masks_) in zip(coeffs, obj_mask, target_bboxes, prototypes, masks):
-                """Input info
+        # Compute loss batch-by-batch
+        valid_instances = 0
+        segment_loss = None
+        for (
+            coeffs_,
+            obj_mask_,
+            target_bboxes_,
+            prototypes_,
+            masks_) in zip(coeffs, obj_mask, target_bboxes, prototypes, masks):
+            """Input info
 
-                coeffs_ (tensor): tensor of shape (3, S, S, nM)
-                obj_mask_ (tensor): tensor of shape (3, S, S)
-                target_bboxes_ (tensor): tensor of shape (3, S, S, 7)
-                prototypes_ (tensor): tensor of shape (nM, H, W)
-                masks_ (tensor): tensor of shape (nM_g, H, W)
-                """
-                # Prediction
-                # =============================================
-                masked_coeffs = self.tanh(coeffs_[obj_mask_])   # (nObj, nM)
-                instances = torch.einsum('om,mhw->ohw', [masked_coeffs, prototypes_]) # (nObj, H, W)
+            coeffs_ (tensor): tensor of shape (3, S, S, nM)
+            obj_mask_ (tensor): tensor of shape (3, S, S)
+            target_bboxes_ (tensor): tensor of shape (3, S, S, 7)
+            prototypes_ (tensor): tensor of shape (nM, H, W)
+            masks_ (tensor): tensor of shape (nM_g, H, W)
+            """
+            # Prediction
+            # =============================================
+            masked_coeffs = self.tanh(coeffs_[obj_mask_])   # (nObj, nM)
+            instances = torch.einsum('om,mhw->ohw', [masked_coeffs, prototypes_]) # (nObj, H, W)
 
-                # Groundtruth
-                # =============================================
-                masked_targets = target_bboxes_[obj_mask_] # (nObj, 7)
-                # bboxes in xywh format (image coordinate)
-                masked_bboxes = masked_targets[..., :4] # (nObj, 4)
-                masked_bboxes[..., 0] *= prototypes_.size(2)
-                masked_bboxes[..., 1] *= prototypes_.size(1)
-                masked_bboxes[..., 2] *= prototypes_.size(2)
-                masked_bboxes[..., 3] *= prototypes_.size(1)
-                # Associated maskIds related to each bbox
-                masked_maskIds = masked_targets[..., 6:7].long() # (nObj, 1)
-                for instance, bbox, maskId in zip(instances, masked_bboxes, masked_maskIds):
-                    target_mask = masks_[maskId].squeeze(0) # (H, W)
-                    target_region = target_mask[
-                                        int(bbox[1]):int(bbox[1])+int(bbox[3]),
-                                        int(bbox[0]):int(bbox[0])+int(bbox[2])
-                                        ]
-                    instance_region = instance[
-                                        int(bbox[1]):int(bbox[1])+int(bbox[3]),
-                                        int(bbox[0]):int(bbox[0])+int(bbox[2])
-                                        ]
-                    loss = F.binary_cross_entropy_with_logits(
-                                instance_region, target_region,
-                                )
-                    segment_loss = segment_loss + loss
-            segment_loss = segment_loss/torch.sum(obj_mask)
+            # Groundtruth
+            # =============================================
+            masked_targets = target_bboxes_[obj_mask_] # (nObj, 7)
+            # bboxes in xywh format (image coordinate)
+            masked_bboxes = masked_targets[..., :4] # (nObj, 4) # (xywh)
+            masked_bboxes[..., 0] *= prototypes_.size(2)
+            masked_bboxes[..., 1] *= prototypes_.size(1)
+            masked_bboxes[..., 2] *= prototypes_.size(2)
+            masked_bboxes[..., 3] *= prototypes_.size(1)
+            # Associated maskIds related to each bbox
+            masked_maskIds = masked_targets[..., 6:7].long() # (nObj, 1)
+            for instance, bbox, maskId in zip(instances, masked_bboxes, masked_maskIds):
+                target_mask = masks_[maskId].squeeze(0) # (H, W)
+                target_region = target_mask[
+                            int(bbox[1]-(bbox[3]/2)):int(bbox[1]+(bbox[3]/2)),
+                            int(bbox[0]-(bbox[2]/2)):int(bbox[0]+(bbox[2]/2)),
+                            ]
+                instance_region = instance[
+                            int(bbox[1]-(bbox[3]/2)):int(bbox[1]+(bbox[3]/2)),
+                            int(bbox[0]-(bbox[2]/2)):int(bbox[0]+(bbox[2]/2)),
+                            ]
+                if instance_region.shape[0]*instance_region.shape[1] == 0:
+                    continue
+
+                valid_instances += 1
+                loss = F.binary_cross_entropy_with_logits(instance_region, target_region)
+                segment_loss = loss if segment_loss is None else (segment_loss + loss)
+
+        segment_loss = segment_loss/(valid_instances+epsilon)
 
         # OBJECT LOSS
         # ===========================================
@@ -363,7 +365,7 @@ class YOLOMaskLoss(nn.Module):
                 + self.lambda_obj * obj_loss
                 + self.lambda_noobj * noobj_loss
                 + self.lambda_class * class_loss
-                # + self.lambda_segment * segment_loss
+                + self.lambda_segment * segment_loss
             )
         }
         return loss
