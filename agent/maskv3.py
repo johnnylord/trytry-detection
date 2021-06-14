@@ -355,7 +355,7 @@ class Maskv3Agent:
                     continue
                 # Count number of correct classified object
                 correct_class += torch.sum((
-                    torch.argmax(pred[..., 5:][obj_mask], dim=-1)
+                    torch.argmax(pred[..., 5:5+self.config['model']['num_classes']][obj_mask], dim=-1)
                     == target[..., 5][obj_mask]
                     ))
                 # Count number of correct objectness & non-objectness
@@ -400,7 +400,9 @@ class Maskv3Agent:
                 pred[..., 0:2] = torch.sigmoid(pred[..., 0:2])      # (N, 3, S, S, 2)
                 pred[..., 2:4] = torch.exp(pred[..., 2:4])*anchors  # (N, 3, S, S, 2)
                 pred[..., 4:5] = torch.sigmoid(pred[..., 4:5])      # (N, 3, S, S, 1)
-                pred_cls_probs = F.softmax(pred[..., 5:], dim=-1)   # (N, 3, S, S, C)
+                pred_cls_probs = F.softmax(
+                                    pred[..., 5:5+self.config['model']['n_classes']],
+                                    dim=-1)   # (N, 3, S, S, C)
                 _, indices = torch.max(pred_cls_probs, dim=-1)      # (N, 3, S, S)
                 indices = indices.unsqueeze(-1)                     # (N, 3, S, S, 1)
                 pred = torch.cat([ pred[..., :5], indices ], dim=-1)# (N, 3, S, S, 6)

@@ -52,8 +52,8 @@ def cells_to_boxes(cells, scale):
     h_cells = cells[..., 3:4]   # (N, 3, scale, scale, 1)
     conf = cells[..., 4:5]      # (N, 3, scale, scale, 1)
     cls = cells[..., 5:6]       # (N, 3, scale, scale, 1)
-    if cells.size(4) == 7:
-        mask = cells[..., 6:7]  # (N, 3, scale, scale, 1)
+    if cells.size(4) > 6:
+        tails = cells[..., 6:]  # (N, 3, scale, scale, N)
     # Cell coordinates
     cell_indices = (            # (N, 3, scale, scale, 1)
         torch.arange(scale)
@@ -66,8 +66,8 @@ def cells_to_boxes(cells, scale):
     y = (1/scale)*(y_cells+cell_indices.permute(0, 1, 3, 2, 4))
     w = (1/scale)*(w_cells)
     h = (1/scale)*(h_cells)
-    if cells.size(4) == 7:
-        boxes = torch.cat([x, y, w, h, conf, cls, mask], dim=-1)
+    if cells.size(4) > 6:
+        boxes = torch.cat([x, y, w, h, conf, cls, tails], dim=-1)
     else:
         boxes = torch.cat([x, y, w, h, conf, cls], dim=-1)
     return boxes

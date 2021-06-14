@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import colorsys
 
 def get_color_palette(class_names):
     cmaps = [
@@ -18,6 +19,20 @@ def get_color_palette(class_names):
         colors.append(tuple(color.tolist()))
 
     return colors
+
+def get_color_mask(mask, color):
+    r = np.zeros_like(mask).astype(np.uint8)
+    g = np.zeros_like(mask).astype(np.uint8)
+    b = np.zeros_like(mask).astype(np.uint8)
+    r[mask >= 125], g[mask >= 125], b[mask >= 125] = color
+    color_mask = np.stack([r, g, b], axis=2)
+    return color_mask
+
+def get_color(tag, hue_step=0.41):
+    tag = int(tag)
+    h, v = (tag*hue_step) % 1, 1. - (int(tag*hue_step)%4)/5.
+    r, g, b = colorsys.hsv_to_rgb(h, 1., v)
+    return int(r*255), int(255*g), int(255*b)
 
 def draw_mask(frame, bbox, mask):
     canvas = np.zeros_like(frame).astype(np.uint8)
