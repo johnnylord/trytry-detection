@@ -9,10 +9,17 @@ This repo implements yolov3 from scratch with pytorch.
 | YOLOv3\_416x416 | MS COCO2014    | 0.47    | [Download](https://www.dropbox.com/s/rdaztvk7ap46f1i/yolov3_coco2014.pth?dl=0) |
 
 ## How to train the model
+
 ### Download dataset
-Thanks to [aladdinperson](https://github.com/aladdinpersson), we can directly download organzied dataset from his kaggle account.
-- [pascal voc2012 dataset](https://www.kaggle.com/aladdinpersson/pascal-voc-dataset-used-in-yolov3-video)
-- [coco2014 dataset](https://www.kaggle.com/dataset/79abcc2659dc745fddfba1864438afb2fac3fabaa5f37daa8a51e36466db101e)
+- [voc2012 dataset](https://www.dropbox.com/s/wpo5ht4rnphsn8k/voc2012.tar.gz?dl=0)
+- [coco2014 dataset](https://www.dropbox.com/s/ct43kswckwpafpq/coco2014.tar.gz?dl=0)
+```bash
+$ cd download
+$ wget -O voc2012.zip https://www.dropbox.com/s/wpo5ht4rnphsn8k/voc2012.tar.gz?dl=1
+$ wget -O coco2014.zip https://www.dropbox.com/s/ct43kswckwpafpq/coco2014.tar.gz?dl=1
+$ tar -xzvf voc2012.zip && rm voc2012.zip
+$ tar -xzvf coco2014.zip && rm coco2014.zip
+```
 
 ### Directory Structure of Dataset
 Download the dataset and unzip them under `download` directory with the following structure.
@@ -22,6 +29,7 @@ download
 ├── COCO
 │   ├── images
 │   ├── labels
+│   ├── masks
 │   ├── test.csv
 │   └── train.csv
 └── PASCAL_VOC
@@ -107,15 +115,7 @@ print("t3 shape:", targets[2].shape) # (3, 52, 52, 6)
 ```
 
 ## VOC2012 Visualization of Result
-- **The following diagram shows the prediction result of 9 voc image.**
-![voc-prediction](https://i.imgur.com/yEUEfnP.png)
-
-- **The following diagram shows the ground truth result of 9 voc image.**
-![voc-groundtruth](https://i.imgur.com/CNk5zdR.png)
+![VOC2012](https://i.imgur.com/EbYx6bU.png)
 
 ## COCO2104 Visualization of Result
-- **The following diagram shows the prediction result of 9 coco image.**
-![coco-prediction](https://i.imgur.com/SHkvzxF.png)
-
-- **The following diagram shows the ground truth result of 9 coco image.**
-![coco-groundtruth](https://i.imgur.com/9Cpzq4x.png)
+![COCO2014](https://i.imgur.com/rijFc8r.png)
