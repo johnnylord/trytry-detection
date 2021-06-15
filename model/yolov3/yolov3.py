@@ -213,43 +213,54 @@ class Maskv3(YOLOv3):
         self.num_masks = num_masks
         self.num_features = num_features
         super().__init__(**kwargs)
-        # Upscaling layers
+        # Skip Feature Layers
         # ====================================================================
-        self.upscales = nn.ModuleList()
-        # (512, 13, 13) => (num_features, 52, 52)
-        self.upscales.append(nn.Sequential(
-            nn.ConvTranspose2d(512, num_features, **self._upscale_params(4)),
+        # (512, 13, 13) => (num_features, 26, 26)
+        self.upscale1 = nn.Sequential(
+            nn.ConvTranspose2d(512, num_features, **self._upscale_params(2)),
             nn.BatchNorm2d(num_features),
             nn.LeakyReLU(0.1, inplace=True),
-            ))
-        # (256, 26, 26) => (num_features, 52, 52)
-        self.upscales.append(nn.Sequential(
-            nn.ConvTranspose2d(256, num_features, **self._upscale_params(2)),
+            )
+        # (256+num_features, 26, 26) => (num_features, 52, 52)
+        self.upscale2 = nn.Sequential(
+            nn.ConvTranspose2d(256+num_features, num_features, **self._upscale_params(2)),
             nn.BatchNorm2d(num_features),
             nn.LeakyReLU(0.1, inplace=True),
-            ))
-        # (128, 52, 52) => (num_features, 52, 52)
-        self.upscales.append(nn.Sequential(
-            nn.ConvTranspose2d(128, num_features, **self._upscale_params(1)),
+            )
+        # (128+num_features, 52, 52) => (num_features, 104, 104)
+        self.upscale3 = nn.Sequential(
+            nn.ConvTranspose2d(128+num_features, num_features, **self._upscale_params(2)),
             nn.BatchNorm2d(num_features),
             nn.LeakyReLU(0.1, inplace=True),
-            ))
+            )
 
         # Mask Generation Layer
         # ====================================================================
         self.protonet = nn.Sequential(
-            nn.Conv2d(num_features*3, num_masks, kernel_size=3, stride=1, padding=1),
+            # (num_features, 104, 104)
+            nn.ConvTranspose2d(num_features, num_features//2, **self._upscale_params(2)),
+            nn.BatchNorm2d(num_features//2),
+            nn.LeakyReLU(0.1, inplace=True),
+            # (num_features//2, 208, 208)
+            nn.ConvTranspose2d(num_features//2, num_features//4, **self._upscale_params(2)),
+            nn.BatchNorm2d(num_features//4),
+            nn.LeakyReLU(0.1, inplace=True),
+            # (num_features//4, 416, 416)
+            nn.Conv2d(num_features//4, num_masks, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
+            # (num_masks, 416, 416)
             )
-
-        self.upsample = nn.Upsample(scale_factor=8)
 
     def forward(self, x):
         outputs, latent_features = self._foward_logics(x)
-        x = [ layer(f) for layer, f in zip(self.upscales, latent_features) ]
-        x = torch.cat(x, dim=1)
+
+        x = self.upscale1(latent_features[0])
+        x = torch.cat([latent_features[1], x], dim=1)
+        x = self.upscale2(x)
+        x = torch.cat([latent_features[2], x], dim=1)
+        x = self.upscale3(x)
         masks = self.protonet(x)
-        masks = self.upsample(masks)
+
         return outputs, masks
 
     def get_prediction_head(self, in_channels):
@@ -268,9 +279,9 @@ if __name__ == "__main__":
     num_classes = 80
     IMAGE_SIZE = 416
     model = YOLOv3(in_channels=3, num_classes=num_classes)
-    model = model.to("cuda")
+    model = model.to("cuda:1")
     x = torch.randn((1, 3, IMAGE_SIZE, IMAGE_SIZE))
-    x = x.to("cuda")
+    x = x.to("cuda:1")
 
     import time
     start = time.time()
@@ -286,9 +297,9 @@ if __name__ == "__main__":
 
     model = Maskv3(
                 in_channels=3, num_classes=num_classes, # Object Detection Branch
-                num_masks=5, num_features=128, # Mask Generation Branch
+                num_masks=32, num_features=256, # Mask Generation Branch
                 )
-    model = model.to("cuda")
+    model = model.to("cuda:1")
     start = time.time()
     for i in range(100):
         outs, masks = model(x)
