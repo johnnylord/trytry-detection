@@ -7,6 +7,7 @@ This repo implements yolov3 and yolact with darknet53 backbone from scratch with
 |-----------------|----------------|---------|--------------------------------------------------------------------------------|
 | YOLOv3\_416x416 | PASCAL VOC2012 | 0.74    | [Download](https://www.dropbox.com/s/7gtcjbxnk012k3h/yolov3_voc2012.pth?dl=0)  |
 | YOLOv3\_416x416 | MS COCO2014    | 0.47    | [Download](https://www.dropbox.com/s/rdaztvk7ap46f1i/yolov3_coco2014.pth?dl=0) |
+| Maskv3\_416x416 | MS COCO2014    | 0.51    | [Download](https://www.dropbox.com/s/dy1weqzdr3rsl1h/maskv3_coco2014.pth?dl=0) |
 
 ## VOC2012 Visualization of Result
 ![VOC2012](https://i.imgur.com/EbYx6bU.png)
@@ -14,8 +15,8 @@ This repo implements yolov3 and yolact with darknet53 backbone from scratch with
 ## COCO2104 Visualization of Result
 ![COCO2014](https://i.imgur.com/rijFc8r.png)
 
-## YOLACT with Darknet53 Visualization of Result
-![YOLACT](https://i.imgur.com/ECFWno7.png)
+## Maskv3 with YOLACT Concept
+![COCO2014Mask](https://i.imgur.com/JXcIKH8.jpg)
 
 ## How to train the model
 

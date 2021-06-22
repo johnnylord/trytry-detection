@@ -41,7 +41,7 @@ def draw_mask(frame, bbox, mask):
     canvas[ymin:ymax, xmin:xmax] = mask
     frame[:, :, :] = cv2.addWeighted(frame, 1, canvas, 0.5, 0)
 
-def draw_boxes(frame, boxes, class_names):
+def draw_boxes(frame, boxes, class_names, color=None):
     """Draw bounding boxes on image frame
 
     Arguments:
@@ -60,8 +60,8 @@ def draw_boxes(frame, boxes, class_names):
     for box in boxes:
         x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
         conf, cls = float(box[4]), int(box[5])
-        name, color = class_names[cls], colors[cls]
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color=color, thickness=3)
+        name, color = class_names[cls], colors[cls] if color is None else color
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color=color, thickness=2)
         draw_text(frame, name, (x1, y1),
                 bgcolor=color, fgcolor=(255, 255, 255),
                 fontScale=1, thickness=1, margin=1)
