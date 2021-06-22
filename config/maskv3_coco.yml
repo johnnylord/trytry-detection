@@ -3,7 +3,7 @@ agent: "Maskv3Agent"
 
 train:
   device: "cuda:0"
-  logdir: "run/maskv3_coco_baseline"
+  logdir: "run/maskv3_coco_deconv"
   n_epochs: 100
   resume: false
   final: false
@@ -40,7 +40,7 @@ dataset:
   ]
 
 dataloader:
-  batch_size: 64
+  batch_size: 32
   num_workers: 8
 
 # Maskv3 Model
@@ -48,7 +48,7 @@ model:
   in_channels: 3
   num_classes: 80
   num_masks: 32
-  num_features: 128
+  num_features: 256
 
 # Adam optimizer
 optimizer:

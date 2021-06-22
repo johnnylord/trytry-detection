@@ -133,6 +133,9 @@ class Maskv3Agent:
             self._validate()
             accs = self._check_accuracy()
 
+            if self.current_epoch < self.config['valid']['when']:
+                self._save_checkpoint()
+
             if (
                 self.current_epoch >= self.config['valid']['when']
                 and self.current_epoch % 5 == 0
@@ -401,7 +404,7 @@ class Maskv3Agent:
                 pred[..., 2:4] = torch.exp(pred[..., 2:4])*anchors  # (N, 3, S, S, 2)
                 pred[..., 4:5] = torch.sigmoid(pred[..., 4:5])      # (N, 3, S, S, 1)
                 pred_cls_probs = F.softmax(
-                                    pred[..., 5:5+self.config['model']['n_classes']],
+                                    pred[..., 5:5+self.config['model']['num_classes']],
                                     dim=-1)   # (N, 3, S, S, C)
                 _, indices = torch.max(pred_cls_probs, dim=-1)      # (N, 3, S, S)
                 indices = indices.unsqueeze(-1)                     # (N, 3, S, S, 1)

@@ -259,9 +259,9 @@ class Maskv3(YOLOv3):
         x = self.upscale2(x)
         x = torch.cat([latent_features[2], x], dim=1)
         x = self.upscale3(x)
-        masks = self.protonet(x)
+        x = self.protonet(x) # (masks)
 
-        return outputs, masks
+        return outputs, x
 
     def get_prediction_head(self, in_channels):
         return MaskScalePrediction(in_channels,
